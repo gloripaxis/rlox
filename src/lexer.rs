@@ -10,18 +10,6 @@ fn is_end(current: usize, srclen: usize) -> bool {
     current >= srclen
 }
 
-fn advance_maybe(current: &mut usize, srclen: usize, chars: &[char], expected: char) -> bool {
-    if is_end(*current, srclen) {
-        return false;
-    }
-    if chars[*current] != expected {
-        return false;
-    }
-
-    *current = *current + 1;
-    true
-}
-
 fn peek(current: usize, srclen: usize, chars: &[char]) -> char {
     if is_end(current, srclen) {
         return '\0';
@@ -35,17 +23,27 @@ fn advance(chars: &[char], current: &mut usize) -> char {
     c
 }
 
-fn consolidate_errors(errors: Vec<LexerError>) -> Box<dyn Error> {
-    let mut total_error = String::new();
-    if errors.len() > 1 {
-        total_error.push_str("Multiple errors occured in Lexer:\n");
+fn advance_maybe(current: &mut usize, srclen: usize, chars: &[char], expected: char) -> bool {
+    if is_end(*current, srclen) {
+        return false;
     }
-    for err in errors.iter() {
-        total_error.push_str(&format!("{err}"));
-        total_error.push('\n');
+    if chars[*current] != expected {
+        return false;
     }
-    Box::new(LoxError::new(total_error))
+
+    *current = *current + 1;
+    true
 }
+
+fn advance_until(current: &mut usize, line: &mut usize, srclen: usize, chars: &[char], expected: char) {
+    while peek(*current, srclen, &chars) != expected && !is_end(*current, srclen) {
+        if peek(*current, srclen, &chars) == '\n' {
+            *line = *line + 1;
+        }
+        advance(&chars, current);
+    }
+}
+
 
 pub fn scan(source: &str) -> Result<Vec<Token>, Box<dyn Error>> {
     let mut tokens: Vec<Token> = Vec::new();
@@ -65,6 +63,7 @@ pub fn scan(source: &str) -> Result<Vec<Token>, Box<dyn Error>> {
         
         // scanToken
         match c {
+            // Unambiguous single-symbol tokens
             '(' => tokens.push(Token::new(TokenType::LeftParen, "(", line)),
             ')' => tokens.push(Token::new(TokenType::RightParen, ")", line)),
             '{' => tokens.push(Token::new(TokenType::LeftBrace, "{", line)),
@@ -75,6 +74,7 @@ pub fn scan(source: &str) -> Result<Vec<Token>, Box<dyn Error>> {
             '+' => tokens.push(Token::new(TokenType::Plus, "+", line)),
             ';' => tokens.push(Token::new(TokenType::Semicolon, ";", line)),
             '*' => tokens.push(Token::new(TokenType::Star, "*", line)),
+            // Ambiguous single-, double-, or multi-symbol tokens
             '!' => {
                 if advance_maybe(&mut current, srclen, &chars, '=') {
                     tokens.push(Token::new(TokenType::Neq, "!=", line));
@@ -106,6 +106,7 @@ pub fn scan(source: &str) -> Result<Vec<Token>, Box<dyn Error>> {
             '/' => {
                 let result = advance_maybe(&mut current, srclen, &chars, '/');
                 if result {
+                    advance_until(&mut current, &mut line, srclen, &chars, '\n');
                     while peek(current, srclen, &chars) != '\n' && !is_end(current, srclen) {
                         advance(&chars, &mut current);
                     }
@@ -113,16 +114,12 @@ pub fn scan(source: &str) -> Result<Vec<Token>, Box<dyn Error>> {
                     tokens.push(Token::new(TokenType::Slash, "/", line));
                 }
             },
+            // Whitespace
             ' ' | '\r' | '\t' => {},
             '\n' => { line += 1; },
+            // Strings
             '"' => {
-                while peek(current, srclen, &chars) != '"' && !is_end(current, srclen) {
-                    if peek(current, srclen, &chars) == '\n' {
-                        line += 1;
-                    }
-                    advance(&chars, &mut current);
-                }
-
+                advance_until(&mut current, &mut line, srclen, &chars, '"');
                 if is_end(current, srclen) {
                     // This is a non-recoverable error => early return Err
                     errors.push(LexerError::new(String::from("Unterminated string"), line));
@@ -148,4 +145,17 @@ pub fn scan(source: &str) -> Result<Vec<Token>, Box<dyn Error>> {
     let eof_token = Token::new(TokenType::EOF, "\0", line);
     tokens.push(eof_token);
     Ok(tokens)
+}
+
+
+fn consolidate_errors(errors: Vec<LexerError>) -> Box<dyn Error> {
+    let mut total_error = String::new();
+    if errors.len() > 1 {
+        total_error.push_str("Multiple errors occured in Lexer:\n");
+    }
+    for err in errors.iter() {
+        total_error.push_str(&format!("{err}"));
+        total_error.push('\n');
+    }
+    Box::new(LoxError::new(total_error))
 }
