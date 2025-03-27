@@ -1,4 +1,4 @@
-use std::error::Error;
+use std::{collections::HashMap, error::Error};
 
 use types::{LexerError, Token, TokenType};
 
@@ -15,6 +15,13 @@ fn peek(current: usize, srclen: usize, chars: &[char]) -> char {
         return '\0';
     }
     chars[current]
+}
+
+fn peek_next(current: usize, srclen: usize, chars: &[char]) -> char {
+    if current + 1 > srclen {
+        return '\0'
+    }
+    chars[current+1]
 }
 
 fn advance(chars: &[char], current: &mut usize) -> char {
@@ -46,6 +53,26 @@ fn advance_until(current: &mut usize, line: &mut usize, srclen: usize, chars: &[
 
 
 pub fn scan(source: &str) -> Result<Vec<Token>, Box<dyn Error>> {
+    let keywords: HashMap<&str, TokenType> = HashMap::from([
+        ("and", TokenType::And),
+        ("class", TokenType::Class),
+        ("else", TokenType::Else),
+        ("false", TokenType::False),
+        ("for", TokenType::For),
+        ("fun", TokenType::Fun),
+        ("if", TokenType::If),
+        ("nil", TokenType::Nil),
+        ("or", TokenType::Or),
+        ("print", TokenType::Print),
+        ("return", TokenType::Return),
+        ("super", TokenType::Super),
+        ("this", TokenType::This),
+        ("true", TokenType::True),
+        ("var", TokenType::Var),
+        ("while", TokenType::While),
+    ]);
+
+
     let mut tokens: Vec<Token> = Vec::new();
     let mut start: usize;
     let mut current: usize = 0;
@@ -131,8 +158,34 @@ pub fn scan(source: &str) -> Result<Vec<Token>, Box<dyn Error>> {
                 let value = &source[start+1..current-1];
                 tokens.push(Token::new(TokenType::String, value, line));
             },
+            // Numbers
+            '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' => {
+                while peek(current, srclen, &chars).is_ascii_digit() {
+                    advance(&chars, &mut current);
+                }
+                if peek(current, srclen, &chars) == '.' && peek_next(current, srclen, &chars).is_ascii_digit() {
+                    advance(&chars, &mut current);
+                }
+                while peek(current, srclen, &chars).is_ascii_digit() {
+                    advance(&chars, &mut current);
+                }
+
+                let value = &source[start..current];
+                tokens.push(Token::new(TokenType::Number, value, line));
+            },
             _ => {
-                errors.push(LexerError::new(String::from(format!("Unexpected character: {c}")), line));
+                if !c.is_ascii_alphabetic() {
+                    errors.push(LexerError::new(String::from(format!("Unexpected character: {c}")), line));
+                    break;
+                }
+                // Identifiers & Keywords
+                while peek(current, srclen, &chars).is_ascii_alphanumeric() {
+                    advance(&chars, &mut current);
+                }
+                
+                let value = &source[start..current];
+                let ttype = keywords.get(value).copied().unwrap_or(TokenType::Identifier);
+                tokens.push(Token::new(ttype, value, line));
             }
         }
     }
