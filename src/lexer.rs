@@ -6,209 +6,230 @@ use crate::LoxError;
 
 pub mod types;
 
-fn is_end(current: usize, srclen: usize) -> bool {
-    current >= srclen
+pub struct Lexer<'a> {
+    start: usize,
+    current: usize,
+    line: usize,
+
+    source: &'a str,
+    srclen: usize,
+    chars: Vec<char>,
+    tokens: Vec<Token<'a>>,
+
+    keywords: HashMap<&'static str, TokenType>,
+    errors: Vec<LexerError>
 }
 
-fn peek(current: usize, srclen: usize, chars: &[char]) -> char {
-    if is_end(current, srclen) {
-        return '\0';
-    }
-    chars[current]
-}
+impl <'a> Lexer<'a> {
+    pub fn new(source: &'a str) -> Self {
+        let chars: Vec<char> = source.chars().collect();
+        let srclen = chars.len();
+        let kwds = HashMap::from([
+            ("and", TokenType::And),
+            ("class", TokenType::Class),
+            ("else", TokenType::Else),
+            ("false", TokenType::False),
+            ("for", TokenType::For),
+            ("fun", TokenType::Fun),
+            ("if", TokenType::If),
+            ("nil", TokenType::Nil),
+            ("or", TokenType::Or),
+            ("print", TokenType::Print),
+            ("return", TokenType::Return),
+            ("super", TokenType::Super),
+            ("this", TokenType::This),
+            ("true", TokenType::True),
+            ("var", TokenType::Var),
+            ("while", TokenType::While)
+        ]);
 
-fn peek_next(current: usize, srclen: usize, chars: &[char]) -> char {
-    if current + 1 > srclen {
-        return '\0'
-    }
-    chars[current+1]
-}
-
-fn advance(chars: &[char], current: &mut usize) -> char {
-    let c: char = chars[*current];
-    *current = *current + 1;
-    c
-}
-
-fn advance_maybe(current: &mut usize, srclen: usize, chars: &[char], expected: char) -> bool {
-    if is_end(*current, srclen) {
-        return false;
-    }
-    if chars[*current] != expected {
-        return false;
-    }
-
-    *current = *current + 1;
-    true
-}
-
-fn advance_until(current: &mut usize, line: &mut usize, srclen: usize, chars: &[char], expected: char) {
-    while peek(*current, srclen, &chars) != expected && !is_end(*current, srclen) {
-        if peek(*current, srclen, &chars) == '\n' {
-            *line = *line + 1;
+        Self {
+            start: 0,
+            current: 0,
+            line: 1, 
+            source: source,
+            chars: chars,
+            srclen: srclen, 
+            tokens: Vec::new(),
+            keywords: kwds,
+            errors: Vec::new()
         }
-        advance(&chars, current);
     }
-}
 
+    fn add_token(&mut self, ttype: TokenType) {
+        self.tokens.push(Token::new(ttype, &self.source[self.start..self.current], self.line))
+    }
 
-pub fn scan(source: &str) -> Result<Vec<Token>, Box<dyn Error>> {
-    let keywords: HashMap<&str, TokenType> = HashMap::from([
-        ("and", TokenType::And),
-        ("class", TokenType::Class),
-        ("else", TokenType::Else),
-        ("false", TokenType::False),
-        ("for", TokenType::For),
-        ("fun", TokenType::Fun),
-        ("if", TokenType::If),
-        ("nil", TokenType::Nil),
-        ("or", TokenType::Or),
-        ("print", TokenType::Print),
-        ("return", TokenType::Return),
-        ("super", TokenType::Super),
-        ("this", TokenType::This),
-        ("true", TokenType::True),
-        ("var", TokenType::Var),
-        ("while", TokenType::While),
-    ]);
+    fn is_end(&self) -> bool {
+        self.current >= self.srclen
+    }
 
+    fn peek(&self) -> char {
+        if self.is_end() {
+            return '\0';
+        }
+        self.chars[self.current]
+    }
 
-    let mut tokens: Vec<Token> = Vec::new();
-    let mut start: usize;
-    let mut current: usize = 0;
-    let mut line: usize = 1;
+    fn peek_next(&self) -> char {
+        if self.current + 1 > self.srclen {
+            return '\0'
+        }
+        self.chars[self.current+1]
+    }
 
-    let mut errors: Vec<LexerError> = Vec::new();
+    fn advance(&mut self) -> char {
+        let c: char = self.chars[self.current];
+        self.current += 1;
+        c
+    }
 
-    let chars: Vec<char> = source.chars().collect();
-    let srclen = chars.len();
-    while !is_end(current, srclen) {
-        start = current;
+    fn advance_maybe(&mut self, expected: char) -> bool {
+        if self.is_end() {
+            return false;
+        }
+        if self.chars[self.current] != expected {
+            return false;
+        }
+        self.current += 1;
+        true
+    }
 
-        // advance
-        let c = advance(&chars, &mut current);
+    fn advance_until(&mut self, expected: char) {
+        while self.peek() != expected && !self.is_end() {
+            if self.peek() == '\n' {
+                self.line += 1;
+            }
+            self.advance();
+        }
+    }
+
+    fn store_error(&mut self, message: String) {
+        self.errors.push(LexerError::new(message, self.line));
+    }
+
+    fn consolidate_errors(&mut self) -> Box<dyn Error> {
+        let mut total_error = String::new();
+        if self.errors.len() > 1 {
+            total_error.push_str("Multiple errors occured in Lexer:\n");
+        }
+        for err in self.errors.iter() {
+            total_error.push_str(&format!("{err}"));
+            total_error.push('\n');
+        }
+        Box::new(LoxError::new(total_error))
+    }
+
+    fn choose(&mut self, expected: char, double: TokenType, single: TokenType) {
+        let ttype = if self.advance_maybe(expected) { double } else { single };
+        self.add_token(ttype);
+    }
+
+    fn scan_string(&mut self) -> Result<(), Box<dyn Error>> {
+        self.advance_until('"');
+        if self.is_end() {
+            // This is a non-recoverable error => early return Err
+            self.store_error(format!("Unterminated string"));
+            let lox_error = self.consolidate_errors();
+            return Err(lox_error);
+        }
+        self.advance();
+        let value = &self.source[self.start+1..self.current-1];
+        self.tokens.push(Token::new(TokenType::String, value, self.line));
+        Ok(())
+    }
+
+    fn scan_number(&mut self) {
+        while self.peek().is_ascii_digit() {
+            self.advance();
+        }
+        if self.peek() == '.' && self.peek_next().is_ascii_digit() {
+            self.advance();
+        }
+        while self.peek().is_ascii_digit() {
+            self.advance();
+        }
+
+        let value = &self.source[self.start..self.current];
+        self.tokens.push(Token::new(TokenType::Number, value, self.line));
+    }
+
+    fn scan_identifier(&mut self) {
+        while self.peek().is_ascii_alphanumeric() {
+            self.advance();
+        }
         
-        // scanToken
+        let value = &self.source[self.start..self.current];
+        let ttype = self.keywords.get(value).copied().unwrap_or(TokenType::Identifier);
+        self.tokens.push(Token::new(ttype, value, self.line));
+    }
+
+    fn scan_token(&mut self) -> Result<(), Box<dyn Error>> {
+        let c: char = self.advance();
         match c {
             // Unambiguous single-symbol tokens
-            '(' => tokens.push(Token::new(TokenType::LeftParen, "(", line)),
-            ')' => tokens.push(Token::new(TokenType::RightParen, ")", line)),
-            '{' => tokens.push(Token::new(TokenType::LeftBrace, "{", line)),
-            '}' => tokens.push(Token::new(TokenType::RightBrace, "}", line)),
-            ',' => tokens.push(Token::new(TokenType::Comma, ",", line)),
-            '.' => tokens.push(Token::new(TokenType::Dot, ".", line)),
-            '-' => tokens.push(Token::new(TokenType::Minus, "-", line)),
-            '+' => tokens.push(Token::new(TokenType::Plus, "+", line)),
-            ';' => tokens.push(Token::new(TokenType::Semicolon, ";", line)),
-            '*' => tokens.push(Token::new(TokenType::Star, "*", line)),
+            '(' => self.add_token(TokenType::LeftParen),
+            ')' => self.add_token(TokenType::RightParen),
+            '{' => self.add_token(TokenType::LeftBrace),
+            '}' => self.add_token(TokenType::RightBrace),
+            ',' => self.add_token(TokenType::Comma),
+            '.' => self.add_token(TokenType::Dot),
+            '-' => self.add_token(TokenType::Minus),
+            '+' => self.add_token(TokenType::Plus),
+            ';' => self.add_token(TokenType::Semicolon),
+            '*' => self.add_token(TokenType::Star),
+
             // Ambiguous single-, double-, or multi-symbol tokens
-            '!' => {
-                if advance_maybe(&mut current, srclen, &chars, '=') {
-                    tokens.push(Token::new(TokenType::Neq, "!=", line));
-                } else {
-                    tokens.push(Token::new(TokenType::Bang, "!", line));
-                }
-            },
-            '=' => {
-                if advance_maybe(&mut current, srclen, &chars, '=') {
-                    tokens.push(Token::new(TokenType::Eq, "==", line));
-                } else {
-                    tokens.push(Token::new(TokenType::Assign, "=", line));
-                }
-            },
-            '<' => {
-                if advance_maybe(&mut current, srclen, &chars, '=') {
-                    tokens.push(Token::new(TokenType::Leq, "<=", line));
-                } else {
-                    tokens.push(Token::new(TokenType::Lt, "<", line));
-                }
-            },
-            '>' => {
-                if advance_maybe(&mut current, srclen, &chars, '=') {
-                    tokens.push(Token::new(TokenType::Geq, ">=", line));
-                } else {
-                    tokens.push(Token::new(TokenType::Gt, ">", line));
-                }
-            },
+            '!' => self.choose('=', TokenType::Neq, TokenType::Bang),
+            '=' => self.choose('=', TokenType::Eq, TokenType::Assign),
+            '<' => self.choose('=', TokenType::Leq, TokenType::Lt),
+            '>' => self.choose('=', TokenType::Geq, TokenType::Gt),
+
+            // Division or Comments
             '/' => {
-                let result = advance_maybe(&mut current, srclen, &chars, '/');
-                if result {
-                    advance_until(&mut current, &mut line, srclen, &chars, '\n');
-                    while peek(current, srclen, &chars) != '\n' && !is_end(current, srclen) {
-                        advance(&chars, &mut current);
-                    }
+                if self.advance_maybe('/') {
+                    self.advance_until('\n');
                 } else {
-                    tokens.push(Token::new(TokenType::Slash, "/", line));
+                    self.add_token(TokenType::Slash);
                 }
             },
-            // Whitespace
+            // Regular whitespace
             ' ' | '\r' | '\t' => {},
-            '\n' => { line += 1; },
+
+            // Newlines
+            '\n' => self.line += 1,
+            
             // Strings
-            '"' => {
-                advance_until(&mut current, &mut line, srclen, &chars, '"');
-                if is_end(current, srclen) {
-                    // This is a non-recoverable error => early return Err
-                    errors.push(LexerError::new(String::from("Unterminated string"), line));
-                    let lox_error = consolidate_errors(errors);
-                    return Err(lox_error);
-                }
-
-                advance(&chars, &mut current);
-                let value = &source[start+1..current-1];
-                tokens.push(Token::new(TokenType::String, value, line));
-            },
+            '"' => self.scan_string()?, // ? required because scan_string can throw an unrecoverable error
+            
             // Numbers
-            '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' => {
-                while peek(current, srclen, &chars).is_ascii_digit() {
-                    advance(&chars, &mut current);
-                }
-                if peek(current, srclen, &chars) == '.' && peek_next(current, srclen, &chars).is_ascii_digit() {
-                    advance(&chars, &mut current);
-                }
-                while peek(current, srclen, &chars).is_ascii_digit() {
-                    advance(&chars, &mut current);
-                }
-
-                let value = &source[start..current];
-                tokens.push(Token::new(TokenType::Number, value, line));
-            },
+            '0'..='9' => self.scan_number(),
+            
+            // Identifiers & Keywords
+            'A'..='Z' | 'a'..='z' => self.scan_identifier(),
+            
+            // Unexpected characters
             _ => {
-                if !c.is_ascii_alphabetic() {
-                    errors.push(LexerError::new(String::from(format!("Unexpected character: {c}")), line));
-                    break;
-                }
-                // Identifiers & Keywords
-                while peek(current, srclen, &chars).is_ascii_alphanumeric() {
-                    advance(&chars, &mut current);
-                }
-                
-                let value = &source[start..current];
-                let ttype = keywords.get(value).copied().unwrap_or(TokenType::Identifier);
-                tokens.push(Token::new(ttype, value, line));
+                self.store_error(format!("Unexpected character: {c}"));
             }
         }
+        Ok(())
     }
 
-    if !errors.is_empty() {
-        let lox_error = consolidate_errors(errors);
-        return Err(lox_error);
+    pub fn scan(mut self) -> Result<Vec<Token<'a>>, Box<dyn Error>> {
+        while !self.is_end() {
+            self.start = self.current;
+            self.scan_token()?;
+        }
+        
+        if !self.errors.is_empty() {
+            let lox_error = self.consolidate_errors();
+            return Err(lox_error);
+        }
+
+        let eof_token = Token::new(TokenType::EOF, "\0", self.line);
+        self.tokens.push(eof_token);
+        Ok(self.tokens)
     }
 
-    let eof_token = Token::new(TokenType::EOF, "\0", line);
-    tokens.push(eof_token);
-    Ok(tokens)
-}
-
-
-fn consolidate_errors(errors: Vec<LexerError>) -> Box<dyn Error> {
-    let mut total_error = String::new();
-    if errors.len() > 1 {
-        total_error.push_str("Multiple errors occured in Lexer:\n");
-    }
-    for err in errors.iter() {
-        total_error.push_str(&format!("{err}"));
-        total_error.push('\n');
-    }
-    Box::new(LoxError::new(total_error))
 }
