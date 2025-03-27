@@ -104,6 +104,10 @@ impl <'a> Lexer<'a> {
         }
     }
 
+    fn store_error(&mut self, message: String) {
+        self.errors.push(LexerError::new(message, self.line));
+    }
+
     fn consolidate_errors(&mut self) -> Box<dyn Error> {
         let mut total_error = String::new();
         if self.errors.len() > 1 {
@@ -116,11 +120,16 @@ impl <'a> Lexer<'a> {
         Box::new(LoxError::new(total_error))
     }
 
+    fn choose(&mut self, expected: char, double: TokenType, single: TokenType) {
+        let ttype = if self.advance_maybe(expected) { double } else { single };
+        self.add_token(ttype);
+    }
+
     fn scan_string(&mut self) -> Result<(), Box<dyn Error>> {
         self.advance_until('"');
         if self.is_end() {
             // This is a non-recoverable error => early return Err
-            self.errors.push(LexerError::new(String::from("Unterminated string"), self.line));
+            self.store_error(format!("Unterminated string"));
             let lox_error = self.consolidate_errors();
             return Err(lox_error);
         }
@@ -169,24 +178,14 @@ impl <'a> Lexer<'a> {
             '+' => self.add_token(TokenType::Plus),
             ';' => self.add_token(TokenType::Semicolon),
             '*' => self.add_token(TokenType::Star),
-            
+
             // Ambiguous single-, double-, or multi-symbol tokens
-            '!' => {
-                let ttype = if self.advance_maybe('=') { TokenType::Neq } else { TokenType::Bang };
-                self.add_token(ttype);
-            },
-            '=' => {
-                let ttype = if self.advance_maybe('=') { TokenType::Eq } else { TokenType::Assign };
-                self.add_token(ttype);
-            },
-            '<' => {
-                let ttype = if self.advance_maybe('=') { TokenType::Leq } else { TokenType::Lt };
-                self.add_token(ttype);
-            },
-            '>' => {
-                let ttype = if self.advance_maybe('=') { TokenType::Geq } else { TokenType::Gt };
-                self.add_token(ttype);
-            },
+            '!' => self.choose('=', TokenType::Neq, TokenType::Bang),
+            '=' => self.choose('=', TokenType::Eq, TokenType::Assign),
+            '<' => self.choose('=', TokenType::Leq, TokenType::Lt),
+            '>' => self.choose('=', TokenType::Geq, TokenType::Gt),
+
+            // Division or Comments
             '/' => {
                 if self.advance_maybe('/') {
                     self.advance_until('\n');
@@ -211,7 +210,7 @@ impl <'a> Lexer<'a> {
             
             // Unexpected characters
             _ => {
-                self.errors.push(LexerError::new(String::from(format!("Unexpected character: {c}")), self.line));
+                self.store_error(format!("Unexpected character: {c}"));
             }
         }
         Ok(())

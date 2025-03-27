@@ -45,6 +45,7 @@ impl fmt::Display for TokenType {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Token<'a> {
     ttype: TokenType,
     lexeme: &'a str,
