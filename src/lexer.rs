@@ -14,6 +14,7 @@ pub struct Lexer<'a> {
     source: &'a str,
     srclen: usize,
     chars: Vec<char>,
+    tokens: Vec<Token<'a>>,
 
     keywords: HashMap<&'static str, TokenType>,
     errors: Vec<LexerError>
@@ -49,9 +50,14 @@ impl <'a> Lexer<'a> {
             source: source,
             chars: chars,
             srclen: srclen, 
+            tokens: Vec::new(),
             keywords: kwds,
             errors: Vec::new()
         }
+    }
+
+    fn add_token(&mut self, ttype: TokenType) {
+        self.tokens.push(Token::new(ttype, &self.source[self.start..self.current], self.line))
     }
 
     fn is_end(&self) -> bool {
@@ -110,108 +116,111 @@ impl <'a> Lexer<'a> {
         Box::new(LoxError::new(total_error))
     }
 
-    pub fn scan(&mut self) -> Result<Vec<Token>, Box<dyn Error>> {
-        let mut tokens: Vec<Token> = Vec::new();
+    fn scan_string(&mut self) -> Result<(), Box<dyn Error>> {
+        self.advance_until('"');
+        if self.is_end() {
+            // This is a non-recoverable error => early return Err
+            self.errors.push(LexerError::new(String::from("Unterminated string"), self.line));
+            let lox_error = self.consolidate_errors();
+            return Err(lox_error);
+        }
+        self.advance();
+        let value = &self.source[self.start+1..self.current-1];
+        self.tokens.push(Token::new(TokenType::String, value, self.line));
+        Ok(())
+    }
+
+    fn scan_number(&mut self) {
+        while self.peek().is_ascii_digit() {
+            self.advance();
+        }
+        if self.peek() == '.' && self.peek_next().is_ascii_digit() {
+            self.advance();
+        }
+        while self.peek().is_ascii_digit() {
+            self.advance();
+        }
+
+        let value = &self.source[self.start..self.current];
+        self.tokens.push(Token::new(TokenType::Number, value, self.line));
+    }
+
+    fn scan_identifier(&mut self) {
+        while self.peek().is_ascii_alphanumeric() {
+            self.advance();
+        }
         
+        let value = &self.source[self.start..self.current];
+        let ttype = self.keywords.get(value).copied().unwrap_or(TokenType::Identifier);
+        self.tokens.push(Token::new(ttype, value, self.line));
+    }
+
+    fn scan_token(&mut self) -> Result<(), Box<dyn Error>> {
+        let c: char = self.advance();
+        match c {
+            // Unambiguous single-symbol tokens
+            '(' => self.add_token(TokenType::LeftParen),
+            ')' => self.add_token(TokenType::RightParen),
+            '{' => self.add_token(TokenType::LeftBrace),
+            '}' => self.add_token(TokenType::RightBrace),
+            ',' => self.add_token(TokenType::Comma),
+            '.' => self.add_token(TokenType::Dot),
+            '-' => self.add_token(TokenType::Minus),
+            '+' => self.add_token(TokenType::Plus),
+            ';' => self.add_token(TokenType::Semicolon),
+            '*' => self.add_token(TokenType::Star),
+            
+            // Ambiguous single-, double-, or multi-symbol tokens
+            '!' => {
+                let ttype = if self.advance_maybe('=') { TokenType::Neq } else { TokenType::Bang };
+                self.add_token(ttype);
+            },
+            '=' => {
+                let ttype = if self.advance_maybe('=') { TokenType::Eq } else { TokenType::Assign };
+                self.add_token(ttype);
+            },
+            '<' => {
+                let ttype = if self.advance_maybe('=') { TokenType::Leq } else { TokenType::Lt };
+                self.add_token(ttype);
+            },
+            '>' => {
+                let ttype = if self.advance_maybe('=') { TokenType::Geq } else { TokenType::Gt };
+                self.add_token(ttype);
+            },
+            '/' => {
+                if self.advance_maybe('/') {
+                    self.advance_until('\n');
+                } else {
+                    self.add_token(TokenType::Slash);
+                }
+            },
+            // Regular whitespace
+            ' ' | '\r' | '\t' => {},
+
+            // Newlines
+            '\n' => self.line += 1,
+            
+            // Strings
+            '"' => self.scan_string()?, // ? required because scan_string can throw an unrecoverable error
+            
+            // Numbers
+            '0'..='9' => self.scan_number(),
+            
+            // Identifiers & Keywords
+            'A'..='Z' | 'a'..='z' => self.scan_identifier(),
+            
+            // Unexpected characters
+            _ => {
+                self.errors.push(LexerError::new(String::from(format!("Unexpected character: {c}")), self.line));
+            }
+        }
+        Ok(())
+    }
+
+    pub fn scan(mut self) -> Result<Vec<Token<'a>>, Box<dyn Error>> {
         while !self.is_end() {
             self.start = self.current;
-            let c: char = self.advance();
-
-            match c {
-                // Unambiguous single-symbol tokens
-                '(' => tokens.push(Token::new(TokenType::LeftParen, "(", self.line)),
-                ')' => tokens.push(Token::new(TokenType::RightParen, ")", self.line)),
-                '{' => tokens.push(Token::new(TokenType::LeftBrace, "{", self.line)),
-                '}' => tokens.push(Token::new(TokenType::RightBrace, "}", self.line)),
-                ',' => tokens.push(Token::new(TokenType::Comma, ",", self.line)),
-                '.' => tokens.push(Token::new(TokenType::Dot, ".", self.line)),
-                '-' => tokens.push(Token::new(TokenType::Minus, "-", self.line)),
-                '+' => tokens.push(Token::new(TokenType::Plus, "+", self.line)),
-                ';' => tokens.push(Token::new(TokenType::Semicolon, ";", self.line)),
-                '*' => tokens.push(Token::new(TokenType::Star, "*", self.line)),
-                // Ambiguous single-, double-, or multi-symbol tokens
-                '!' => {
-                    if self.advance_maybe('=') {
-                        tokens.push(Token::new(TokenType::Neq, "!=", self.line));
-                    } else {
-                        tokens.push(Token::new(TokenType::Bang, "!", self.line));
-                    }
-                },
-                '=' => {
-                    if self.advance_maybe('=') {
-                        tokens.push(Token::new(TokenType::Eq, "==", self.line));
-                    } else {
-                        tokens.push(Token::new(TokenType::Assign, "=", self.line));
-                    }
-                },
-                '<' => {
-                    if self.advance_maybe('=') {
-                        tokens.push(Token::new(TokenType::Leq, "<=", self.line));
-                    } else {
-                        tokens.push(Token::new(TokenType::Lt, "<", self.line));
-                    }
-                },
-                '>' => {
-                    if self.advance_maybe('=') {
-                        tokens.push(Token::new(TokenType::Geq, ">=", self.line));
-                    } else {
-                        tokens.push(Token::new(TokenType::Gt, ">", self.line));
-                    }
-                },
-                '/' => {
-                    if self.advance_maybe('/') {
-                        self.advance_until('\n');
-                    } else {
-                        tokens.push(Token::new(TokenType::Slash, "/", self.line));
-                    }
-                },
-                // Whitespace
-                ' ' | '\r' | '\t' => {},
-                '\n' => { self.line += 1; },
-                // Strings
-                '"' => {
-                    self.advance_until('"');
-                    println!("{}/{}", self.current, self.srclen);
-                    if self.is_end() {
-                        // This is a non-recoverable error => early return Err
-                        self.errors.push(LexerError::new(String::from("Unterminated string"), self.line));
-                        let lox_error = self.consolidate_errors();
-                        return Err(lox_error);
-                    }
-                    self.advance();
-                    let value = &self.source[self.start+1..self.current-1];
-                    tokens.push(Token::new(TokenType::String, value, self.line));
-                },
-                // Numbers
-                '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' => {
-                    while self.peek().is_ascii_digit() {
-                        self.advance();
-                    }
-                    if self.peek() == '.' && self.peek_next().is_ascii_digit() {
-                        self.advance();
-                    }
-                    while self.peek().is_ascii_digit() {
-                        self.advance();
-                    }
-    
-                    let value = &self.source[self.start..self.current];
-                    tokens.push(Token::new(TokenType::Number, value, self.line));
-                },
-                _ => {
-                    if !c.is_ascii_alphabetic() {
-                        self.errors.push(LexerError::new(String::from(format!("Unexpected character: {c}")), self.line));
-                        continue;
-                    }
-                    // Identifiers & Keywords
-                    while self.peek().is_ascii_alphanumeric() {
-                        self.advance();
-                    }
-                    
-                    let value = &self.source[self.start..self.current];
-                    let ttype = self.keywords.get(value).copied().unwrap_or(TokenType::Identifier);
-                    tokens.push(Token::new(ttype, value, self.line));
-                }
-            }
+            self.scan_token()?;
         }
         
         if !self.errors.is_empty() {
@@ -220,7 +229,8 @@ impl <'a> Lexer<'a> {
         }
 
         let eof_token = Token::new(TokenType::EOF, "\0", self.line);
-        tokens.push(eof_token);
-        Ok(tokens)
+        self.tokens.push(eof_token);
+        Ok(self.tokens)
     }
+
 }

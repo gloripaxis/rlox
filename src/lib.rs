@@ -26,8 +26,7 @@ impl fmt::Display for LoxError {
 }
 
 fn run(source: String) -> Result<(), Box<dyn Error>> {
-    let mut lexer = Lexer::new(&source);
-    let result = lexer.scan()?;
+    let result = Lexer::new(&source).scan()?;
     for tok in result.iter() {
         println!("{tok}");
     }
