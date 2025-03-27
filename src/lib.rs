@@ -2,7 +2,7 @@ use std::error::Error;
 use std::io::Write;
 use std::{fmt, fs, io};
 
-use lexer::scan;
+use lexer::Lexer;
 
 mod lexer;
 
@@ -26,7 +26,8 @@ impl fmt::Display for LoxError {
 }
 
 fn run(source: String) -> Result<(), Box<dyn Error>> {
-    let result = scan(&source)?;
+    let mut lexer = Lexer::new(&source);
+    let result = lexer.scan()?;
     for tok in result.iter() {
         println!("{tok}");
     }
