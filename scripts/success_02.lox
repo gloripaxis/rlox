@@ -1,0 +1,7 @@
+var myVar = "abcdef";
+var v123 = 15;
+var formidable = 42.420;
+print formidable;
+return;
+// massive calculation!
+var x = (v123 + formidable) / 3.14159
