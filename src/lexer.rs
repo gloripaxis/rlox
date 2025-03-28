@@ -37,7 +37,7 @@ impl <'a> Lexer<'a> {
     pub fn scan(mut self) -> Result<Vec<Token<'a>>, Box<dyn Error>> {
         while !self.is_end() {
             self.start = self.current;
-            self.scan_token()?;
+            self.scan_token();
         }
         
         if !self.errors.is_empty() {
@@ -49,7 +49,7 @@ impl <'a> Lexer<'a> {
         Ok(self.tokens)
     }
 
-    fn scan_token(&mut self) -> Result<(), Box<dyn Error>> {
+    fn scan_token(&mut self) {
         let c: char = self.advance();
         match c {
             // Unambiguous single-symbol tokens
@@ -85,7 +85,7 @@ impl <'a> Lexer<'a> {
             '\n' => self.line += 1,
             
             // Strings
-            '"' => self.scan_string()?, // ? required because scan_string can throw an unrecoverable error
+            '"' => self.scan_string(), // ? required because scan_string can throw an unrecoverable error
             
             // Numbers
             '0'..='9' => self.scan_number(),
@@ -96,7 +96,6 @@ impl <'a> Lexer<'a> {
             // Unexpected characters
             _ => self.store_error(format!("Unexpected character: '{c}'"))
         }
-        Ok(())
     }
 
     fn scan_either(&mut self, expected: char, double: TokenType, single: TokenType) {
@@ -104,17 +103,16 @@ impl <'a> Lexer<'a> {
         self.add_token(ttype, None);
     }
 
-    fn scan_string(&mut self) -> Result<(), Box<dyn Error>> {
+    fn scan_string(&mut self) {
         self.advance_until('"');
         if self.is_end() {
             // This is a non-recoverable error => early return Err
             self.store_error(String::from("Unterminated string"));
-            return Err(self.build_error());
+            return;
         }
         self.advance();
         let value = &self.source[self.start+1..self.current-1];
         self.add_token(TokenType::String, Some(value));
-        Ok(())
     }
 
     fn scan_number(&mut self) {
