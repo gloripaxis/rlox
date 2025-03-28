@@ -1,5 +1,11 @@
 use std::fmt;
 
+#[derive(Debug, Copy, Clone)]
+pub enum Literal<'a> {
+    Nil,
+    Number(f64),
+    String(&'a str),
+}
 
 #[derive(Debug, Copy, Clone)]
 pub enum TokenType {
@@ -29,6 +35,7 @@ impl fmt::Display for TokenType {
 pub struct Token<'a> {
     ttype: TokenType,
     lexeme: &'a str,
+    literal: Literal<'a>,
     line: usize,
 }
 
@@ -39,7 +46,7 @@ impl <'a> fmt::Display for Token<'a> {
 }
 
 impl <'a> Token<'a> {
-    pub fn new(ttype: TokenType, lexeme: &'a str, line: usize) -> Self {
-        Self { ttype, lexeme, line }
+    pub fn new(ttype: TokenType, lexeme: &'a str, literal: Literal<'a>, line: usize) -> Self {
+        Self { ttype, lexeme, literal, line }
     }
 }

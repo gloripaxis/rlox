@@ -1,5 +1,5 @@
 use std::error::Error;
-use token::{Token, TokenType};
+use token::{Token, TokenType, Literal};
 use crate::errors::{ErrorMessage, ErrorType, RloxError};
 
 pub mod token;
@@ -44,7 +44,7 @@ impl <'a> Lexer<'a> {
             return Err(self.build_error());
         }
 
-        let eof_token = Token::new(TokenType::EOF, "\0", self.line);
+        let eof_token = Token::new(TokenType::EOF, "\0", Literal::Nil, self.line);
         self.tokens.push(eof_token);
         Ok(self.tokens)
     }
@@ -53,16 +53,16 @@ impl <'a> Lexer<'a> {
         let c: char = self.advance();
         match c {
             // Unambiguous single-symbol tokens
-            '(' => self.add_token(TokenType::LeftParen),
-            ')' => self.add_token(TokenType::RightParen),
-            '{' => self.add_token(TokenType::LeftBrace),
-            '}' => self.add_token(TokenType::RightBrace),
-            ',' => self.add_token(TokenType::Comma),
-            '.' => self.add_token(TokenType::Dot),
-            '-' => self.add_token(TokenType::Minus),
-            '+' => self.add_token(TokenType::Plus),
-            ';' => self.add_token(TokenType::Semicolon),
-            '*' => self.add_token(TokenType::Star),
+            '(' => self.add_token(TokenType::LeftParen, None),
+            ')' => self.add_token(TokenType::RightParen, None),
+            '{' => self.add_token(TokenType::LeftBrace, None),
+            '}' => self.add_token(TokenType::RightBrace, None),
+            ',' => self.add_token(TokenType::Comma, None),
+            '.' => self.add_token(TokenType::Dot, None),
+            '-' => self.add_token(TokenType::Minus, None),
+            '+' => self.add_token(TokenType::Plus, None),
+            ';' => self.add_token(TokenType::Semicolon, None),
+            '*' => self.add_token(TokenType::Star, None),
 
             // Ambiguous single-, double-, or multi-symbol tokens
             '!' => self.scan_either('=', TokenType::Neq, TokenType::Bang),
@@ -75,7 +75,7 @@ impl <'a> Lexer<'a> {
                 if self.advance_maybe('/') {
                     self.advance_until('\n');
                 } else {
-                    self.add_token(TokenType::Slash);
+                    self.add_token(TokenType::Slash, None);
                 }
             },
             // Regular whitespace
@@ -101,7 +101,7 @@ impl <'a> Lexer<'a> {
 
     fn scan_either(&mut self, expected: char, double: TokenType, single: TokenType) {
         let ttype = if self.advance_maybe(expected) { double } else { single };
-        self.add_token(ttype);
+        self.add_token(ttype, None);
     }
 
     fn scan_string(&mut self) -> Result<(), Box<dyn Error>> {
@@ -113,7 +113,7 @@ impl <'a> Lexer<'a> {
         }
         self.advance();
         let value = &self.source[self.start+1..self.current-1];
-        self.tokens.push(Token::new(TokenType::String, value, self.line));
+        self.add_token(TokenType::String, Some(value));
         Ok(())
     }
 
@@ -128,8 +128,7 @@ impl <'a> Lexer<'a> {
             self.advance();
         }
 
-        let value = &self.source[self.start..self.current];
-        self.tokens.push(Token::new(TokenType::Number, value, self.line));
+        self.add_token(TokenType::Number, None);
     }
 
     fn scan_identifier_or_keyword(&mut self) {
@@ -139,11 +138,17 @@ impl <'a> Lexer<'a> {
         
         let value = &self.source[self.start..self.current];
         let ttype = self.get_keyword_type(value).unwrap_or(TokenType::Identifier);
-        self.tokens.push(Token::new(ttype, value, self.line));
+        self.add_token(ttype, Some(value));
     }
 
-    fn add_token(&mut self, ttype: TokenType) {
-        self.tokens.push(Token::new(ttype, &self.source[self.start..self.current], self.line))
+    fn add_token(&mut self, ttype: TokenType, value: Option<&'a str>) {
+        let real_value = value.unwrap_or(&self.source[self.start..self.current]);
+        let literal = match ttype {
+            TokenType::String => Literal::String(real_value),
+            TokenType::Number => Literal::Number(real_value.parse().unwrap()),
+            _ => Literal::Nil
+        };
+        self.tokens.push(Token::new(ttype, real_value, literal, self.line))
     }
 
     fn is_end(&self) -> bool {
