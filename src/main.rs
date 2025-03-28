@@ -9,7 +9,7 @@ fn main() {
         None => run_prompt(),
         Some(x) => run_file(x),
     } {
-        eprintln!("ERROR: {e}");
+        eprintln!("{e}");
         process::exit(1);
     }
 }

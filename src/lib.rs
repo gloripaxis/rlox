@@ -1,29 +1,12 @@
 use std::error::Error;
 use std::io::Write;
-use std::{fmt, fs, io};
+use std::{fs, io};
 
 use lexer::Lexer;
 
+mod errors;
 mod lexer;
 
-#[derive(Debug, Clone)]
-pub struct LoxError {
-    message: String,
-}
-
-impl LoxError {
-    pub fn new(message: String) -> Self {
-        Self { message }
-    }
-}
-
-impl Error for LoxError {}
-
-impl fmt::Display for LoxError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Parsing error: {}", self.message)
-    }
-}
 
 fn run(source: String) -> Result<(), Box<dyn Error>> {
     let result = Lexer::new(&source).scan()?;

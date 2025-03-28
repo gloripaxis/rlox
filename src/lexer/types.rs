@@ -1,24 +1,4 @@
-use std::{error::Error, fmt};
-
-#[derive(Debug, Clone)]
-pub struct LexerError {
-    message: String,
-    line: usize
-}
-
-impl LexerError {
-    pub fn new(message: String, line: usize) -> Self {
-        Self { message, line }
-    }
-}
-
-impl Error for LexerError {}
-
-impl fmt::Display for LexerError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[line {}] {}", self.line, self.message)
-    }
-}
+use std::fmt;
 
 
 #[derive(Debug, Copy, Clone)]

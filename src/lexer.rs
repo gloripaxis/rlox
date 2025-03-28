@@ -1,8 +1,8 @@
 use std::{collections::HashMap, error::Error};
 
-use types::{LexerError, Token, TokenType};
+use types::{Token, TokenType};
 
-use crate::LoxError;
+use crate::errors::{ErrorMessage, ErrorType, RloxError};
 
 pub mod types;
 
@@ -17,7 +17,7 @@ pub struct Lexer<'a> {
     tokens: Vec<Token<'a>>,
 
     keywords: HashMap<&'static str, TokenType>,
-    errors: Vec<LexerError>
+    errors: Vec<ErrorMessage>
 }
 
 impl <'a> Lexer<'a> {
@@ -105,19 +105,11 @@ impl <'a> Lexer<'a> {
     }
 
     fn store_error(&mut self, message: String) {
-        self.errors.push(LexerError::new(message, self.line));
+        self.errors.push(ErrorMessage::new(ErrorType::LexerError, message, self.line))
     }
 
-    fn consolidate_errors(&mut self) -> Box<dyn Error> {
-        let mut total_error = String::new();
-        if self.errors.len() > 1 {
-            total_error.push_str("Multiple Lexing errors occured:\n");
-        }
-        for err in self.errors.iter() {
-            total_error.push_str(&format!("{err}"));
-            total_error.push('\n');
-        }
-        Box::new(LoxError::new(total_error))
+    fn build_error(&mut self) -> Box<dyn Error> {
+        Box::new(RloxError::new(self.errors.clone()))
     }
 
     fn choose(&mut self, expected: char, double: TokenType, single: TokenType) {
@@ -129,9 +121,8 @@ impl <'a> Lexer<'a> {
         self.advance_until('"');
         if self.is_end() {
             // This is a non-recoverable error => early return Err
-            self.store_error(format!("Unterminated string"));
-            let lox_error = self.consolidate_errors();
-            return Err(lox_error);
+            self.store_error(String::from("Unterminated string"));
+            return Err(self.build_error());
         }
         self.advance();
         let value = &self.source[self.start+1..self.current-1];
@@ -209,9 +200,7 @@ impl <'a> Lexer<'a> {
             'A'..='Z' | 'a'..='z' => self.scan_identifier(),
             
             // Unexpected characters
-            _ => {
-                self.store_error(format!("Unexpected character: {c}"));
-            }
+            _ => self.store_error(format!("Unexpected character: '{c}'"))
         }
         Ok(())
     }
@@ -223,8 +212,7 @@ impl <'a> Lexer<'a> {
         }
         
         if !self.errors.is_empty() {
-            let lox_error = self.consolidate_errors();
-            return Err(lox_error);
+            return Err(self.build_error());
         }
 
         let eof_token = Token::new(TokenType::EOF, "\0", self.line);
