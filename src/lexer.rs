@@ -8,6 +8,7 @@ pub struct Lexer<'a> {
     start: usize,
     current: usize,
     line: usize,
+    column: usize,
 
     source: &'a str,
     srclen: usize,
@@ -26,6 +27,7 @@ impl<'a> Lexer<'a> {
             start: 0,
             current: 0,
             line: 1,
+            column: 1,
             source,
             chars,
             srclen,
@@ -44,7 +46,7 @@ impl<'a> Lexer<'a> {
             return Err(self.build_error());
         }
 
-        let eof_token = Token::new(TokenType::EOF, "\0", Literal::Nil, self.line);
+        let eof_token = Token::new(TokenType::EOF, "\0", Literal::Nil, self.line, self.column);
         self.tokens.push(eof_token);
         Ok(self.tokens)
     }
@@ -82,7 +84,10 @@ impl<'a> Lexer<'a> {
             ' ' | '\r' | '\t' => {}
 
             // Newlines
-            '\n' => self.line += 1,
+            '\n' => {
+                self.line += 1;
+                self.column = 1;
+            }
 
             // Strings
             '"' => self.scan_string(), // ? required because scan_string can throw an unrecoverable error
@@ -146,7 +151,33 @@ impl<'a> Lexer<'a> {
             TokenType::Number => Literal::Number(real_value.parse().unwrap()),
             _ => Literal::Nil,
         };
-        self.tokens.push(Token::new(ttype, real_value, literal, self.line))
+        let real_column = match ttype {
+            TokenType::String => {
+                let mut line_start: usize = self.start;
+                println!("Start index: {line_start}");
+                loop {
+                    if line_start == 0 {
+                        break;
+                    }
+                    if self.chars[line_start] == '\n' {
+                        line_start += 1;
+                        break;
+                    }
+                    line_start -= 1;
+                }
+                self.start - line_start + 1
+            }
+            _ => self.column - 1,
+        };
+        let real_line = match ttype {
+            TokenType::String => {
+                let count_newlines = real_value.chars().filter(|c| *c == '\n').count();
+                self.line - count_newlines
+            }
+            _ => self.line,
+        };
+        self.tokens
+            .push(Token::new(ttype, real_value, literal, real_line, real_column))
     }
 
     fn is_end(&self) -> bool {
@@ -156,6 +187,7 @@ impl<'a> Lexer<'a> {
     fn advance(&mut self) -> char {
         let c: char = self.chars[self.current];
         self.current += 1;
+        self.column += 1;
         c
     }
 
@@ -167,6 +199,7 @@ impl<'a> Lexer<'a> {
             return false;
         }
         self.current += 1;
+        self.column += 1;
         true
     }
 
@@ -174,6 +207,7 @@ impl<'a> Lexer<'a> {
         while self.peek() != expected && !self.is_end() {
             if self.peek() == '\n' {
                 self.line += 1;
+                self.column = 1;
             }
             self.advance();
         }

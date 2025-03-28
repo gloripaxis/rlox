@@ -71,21 +71,27 @@ pub struct Token<'a> {
     lexeme: &'a str,
     literal: Literal<'a>,
     line: usize,
+    column: usize,
 }
 
 impl fmt::Display for Token<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[{}::{:0>2}] '{}'", self.ttype, self.line, self.lexeme)
+        write!(
+            f,
+            "[{}] ({:}:{:}) '{}'",
+            self.ttype, self.line, self.column, self.lexeme
+        )
     }
 }
 
 impl<'a> Token<'a> {
-    pub fn new(ttype: TokenType, lexeme: &'a str, literal: Literal<'a>, line: usize) -> Self {
+    pub fn new(ttype: TokenType, lexeme: &'a str, literal: Literal<'a>, line: usize, column: usize) -> Self {
         Self {
             ttype,
             lexeme,
             literal,
             line,
+            column,
         }
     }
 }
