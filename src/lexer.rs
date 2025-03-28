@@ -54,63 +54,72 @@ impl <'a> Lexer<'a> {
         }
     }
 
-    fn add_token(&mut self, ttype: TokenType) {
-        self.tokens.push(Token::new(ttype, &self.source[self.start..self.current], self.line))
-    }
-
-    fn is_end(&self) -> bool {
-        self.current >= self.srclen
-    }
-
-    fn peek(&self) -> char {
-        if self.is_end() {
-            return '\0';
+    pub fn scan(mut self) -> Result<Vec<Token<'a>>, Box<dyn Error>> {
+        while !self.is_end() {
+            self.start = self.current;
+            self.scan_token()?;
         }
-        self.chars[self.current]
-    }
-
-    fn peek_next(&self) -> char {
-        if self.current + 1 > self.srclen {
-            return '\0'
+        
+        if !self.errors.is_empty() {
+            return Err(self.build_error());
         }
-        self.chars[self.current+1]
+
+        let eof_token = Token::new(TokenType::EOF, "\0", self.line);
+        self.tokens.push(eof_token);
+        Ok(self.tokens)
     }
 
-    fn advance(&mut self) -> char {
-        let c: char = self.chars[self.current];
-        self.current += 1;
-        c
-    }
+    fn scan_token(&mut self) -> Result<(), Box<dyn Error>> {
+        let c: char = self.advance();
+        match c {
+            // Unambiguous single-symbol tokens
+            '(' => self.add_token(TokenType::LeftParen),
+            ')' => self.add_token(TokenType::RightParen),
+            '{' => self.add_token(TokenType::LeftBrace),
+            '}' => self.add_token(TokenType::RightBrace),
+            ',' => self.add_token(TokenType::Comma),
+            '.' => self.add_token(TokenType::Dot),
+            '-' => self.add_token(TokenType::Minus),
+            '+' => self.add_token(TokenType::Plus),
+            ';' => self.add_token(TokenType::Semicolon),
+            '*' => self.add_token(TokenType::Star),
 
-    fn advance_maybe(&mut self, expected: char) -> bool {
-        if self.is_end() {
-            return false;
+            // Ambiguous single-, double-, or multi-symbol tokens
+            '!' => self.scan_either('=', TokenType::Neq, TokenType::Bang),
+            '=' => self.scan_either('=', TokenType::Eq, TokenType::Assign),
+            '<' => self.scan_either('=', TokenType::Leq, TokenType::Lt),
+            '>' => self.scan_either('=', TokenType::Geq, TokenType::Gt),
+
+            // Division or Comments
+            '/' => {
+                if self.advance_maybe('/') {
+                    self.advance_until('\n');
+                } else {
+                    self.add_token(TokenType::Slash);
+                }
+            },
+            // Regular whitespace
+            ' ' | '\r' | '\t' => {},
+
+            // Newlines
+            '\n' => self.line += 1,
+            
+            // Strings
+            '"' => self.scan_string()?, // ? required because scan_string can throw an unrecoverable error
+            
+            // Numbers
+            '0'..='9' => self.scan_number(),
+            
+            // Identifiers & Keywords
+            'A'..='Z' | 'a'..='z' => self.scan_identifier_or_keyword(),
+            
+            // Unexpected characters
+            _ => self.store_error(format!("Unexpected character: '{c}'"))
         }
-        if self.chars[self.current] != expected {
-            return false;
-        }
-        self.current += 1;
-        true
+        Ok(())
     }
 
-    fn advance_until(&mut self, expected: char) {
-        while self.peek() != expected && !self.is_end() {
-            if self.peek() == '\n' {
-                self.line += 1;
-            }
-            self.advance();
-        }
-    }
-
-    fn store_error(&mut self, message: String) {
-        self.errors.push(ErrorMessage::new(ErrorType::LexerError, message, self.line))
-    }
-
-    fn build_error(&mut self) -> Box<dyn Error> {
-        Box::new(RloxError::new(self.errors.clone()))
-    }
-
-    fn choose(&mut self, expected: char, double: TokenType, single: TokenType) {
+    fn scan_either(&mut self, expected: char, double: TokenType, single: TokenType) {
         let ttype = if self.advance_maybe(expected) { double } else { single };
         self.add_token(ttype);
     }
@@ -143,7 +152,7 @@ impl <'a> Lexer<'a> {
         self.tokens.push(Token::new(TokenType::Number, value, self.line));
     }
 
-    fn scan_identifier(&mut self) {
+    fn scan_identifier_or_keyword(&mut self) {
         while self.peek().is_ascii_alphanumeric() {
             self.advance();
         }
@@ -153,69 +162,60 @@ impl <'a> Lexer<'a> {
         self.tokens.push(Token::new(ttype, value, self.line));
     }
 
-    fn scan_token(&mut self) -> Result<(), Box<dyn Error>> {
-        let c: char = self.advance();
-        match c {
-            // Unambiguous single-symbol tokens
-            '(' => self.add_token(TokenType::LeftParen),
-            ')' => self.add_token(TokenType::RightParen),
-            '{' => self.add_token(TokenType::LeftBrace),
-            '}' => self.add_token(TokenType::RightBrace),
-            ',' => self.add_token(TokenType::Comma),
-            '.' => self.add_token(TokenType::Dot),
-            '-' => self.add_token(TokenType::Minus),
-            '+' => self.add_token(TokenType::Plus),
-            ';' => self.add_token(TokenType::Semicolon),
-            '*' => self.add_token(TokenType::Star),
-
-            // Ambiguous single-, double-, or multi-symbol tokens
-            '!' => self.choose('=', TokenType::Neq, TokenType::Bang),
-            '=' => self.choose('=', TokenType::Eq, TokenType::Assign),
-            '<' => self.choose('=', TokenType::Leq, TokenType::Lt),
-            '>' => self.choose('=', TokenType::Geq, TokenType::Gt),
-
-            // Division or Comments
-            '/' => {
-                if self.advance_maybe('/') {
-                    self.advance_until('\n');
-                } else {
-                    self.add_token(TokenType::Slash);
-                }
-            },
-            // Regular whitespace
-            ' ' | '\r' | '\t' => {},
-
-            // Newlines
-            '\n' => self.line += 1,
-            
-            // Strings
-            '"' => self.scan_string()?, // ? required because scan_string can throw an unrecoverable error
-            
-            // Numbers
-            '0'..='9' => self.scan_number(),
-            
-            // Identifiers & Keywords
-            'A'..='Z' | 'a'..='z' => self.scan_identifier(),
-            
-            // Unexpected characters
-            _ => self.store_error(format!("Unexpected character: '{c}'"))
-        }
-        Ok(())
+    fn add_token(&mut self, ttype: TokenType) {
+        self.tokens.push(Token::new(ttype, &self.source[self.start..self.current], self.line))
     }
 
-    pub fn scan(mut self) -> Result<Vec<Token<'a>>, Box<dyn Error>> {
-        while !self.is_end() {
-            self.start = self.current;
-            self.scan_token()?;
-        }
-        
-        if !self.errors.is_empty() {
-            return Err(self.build_error());
-        }
+    fn is_end(&self) -> bool {
+        self.current >= self.srclen
+    }
 
-        let eof_token = Token::new(TokenType::EOF, "\0", self.line);
-        self.tokens.push(eof_token);
-        Ok(self.tokens)
+    fn advance(&mut self) -> char {
+        let c: char = self.chars[self.current];
+        self.current += 1;
+        c
+    }
+
+    fn advance_maybe(&mut self, expected: char) -> bool {
+        if self.is_end() {
+            return false;
+        }
+        if self.chars[self.current] != expected {
+            return false;
+        }
+        self.current += 1;
+        true
+    }
+
+    fn advance_until(&mut self, expected: char) {
+        while self.peek() != expected && !self.is_end() {
+            if self.peek() == '\n' {
+                self.line += 1;
+            }
+            self.advance();
+        }
+    }
+
+    fn peek(&self) -> char {
+        if self.is_end() {
+            return '\0';
+        }
+        self.chars[self.current]
+    }
+
+    fn peek_next(&self) -> char {
+        if self.current + 1 > self.srclen {
+            return '\0'
+        }
+        self.chars[self.current+1]
+    }
+
+    fn store_error(&mut self, message: String) {
+        self.errors.push(ErrorMessage::new(ErrorType::LexerError, message, self.line))
+    }
+
+    fn build_error(&mut self) -> Box<dyn Error> {
+        Box::new(RloxError::new(self.errors.clone()))
     }
 
 }
