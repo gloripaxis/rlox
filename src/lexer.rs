@@ -111,7 +111,7 @@ impl <'a> Lexer<'a> {
     fn consolidate_errors(&mut self) -> Box<dyn Error> {
         let mut total_error = String::new();
         if self.errors.len() > 1 {
-            total_error.push_str("Multiple errors occured in Lexer:\n");
+            total_error.push_str("Multiple Lexing errors occured:\n");
         }
         for err in self.errors.iter() {
             total_error.push_str(&format!("{err}"));
