@@ -1,10 +1,8 @@
 use std::{collections::HashMap, error::Error};
-
-use types::{Token, TokenType};
-
+use token::{Token, TokenType};
 use crate::errors::{ErrorMessage, ErrorType, RloxError};
 
-pub mod types;
+pub mod token;
 
 pub struct Lexer<'a> {
     start: usize,
