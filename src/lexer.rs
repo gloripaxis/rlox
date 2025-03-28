@@ -99,7 +99,7 @@ impl<'a> Lexer<'a> {
             'A'..='Z' | 'a'..='z' => self.scan_identifier_or_keyword(),
 
             // Unexpected characters
-            _ => self.store_error(format!("Unexpected character: '{c}'")),
+            _ => self.store_error(format!("Encountered illegal character '{c}'"), None, None),
         }
     }
 
@@ -112,7 +112,12 @@ impl<'a> Lexer<'a> {
         self.advance_until('"');
         if self.is_end() {
             // This is a non-recoverable error => early return Err
-            self.store_error(String::from("Unterminated string"));
+            let (true_line, true_col) = self.find_string_start_position(&self.source[self.start..self.current]);
+            self.store_error(
+                String::from("String is never terminated"),
+                Some(true_line),
+                Some(true_col),
+            );
             return;
         }
         self.advance();
@@ -144,40 +149,40 @@ impl<'a> Lexer<'a> {
         self.add_token(ttype, Some(value));
     }
 
+    fn find_string_start_position(&self, value: &str) -> (usize, usize) {
+        let count_newlines = value.chars().filter(|c| *c == '\n').count();
+        let true_line = self.line - count_newlines;
+
+        let mut line_start: usize = self.start;
+        loop {
+            if line_start == 0 {
+                break;
+            }
+            if self.chars[line_start] == '\n' {
+                line_start += 1;
+                break;
+            }
+            line_start -= 1;
+        }
+        let true_start = self.start - line_start + 1;
+
+        (true_line, true_start)
+    }
+
     fn add_token(&mut self, ttype: TokenType, value: Option<&'a str>) {
-        let real_value = value.unwrap_or(&self.source[self.start..self.current]);
+        let true_value = value.unwrap_or(&self.source[self.start..self.current]);
         let literal = match ttype {
-            TokenType::String => Literal::String(real_value),
-            TokenType::Number => Literal::Number(real_value.parse().unwrap()),
+            TokenType::String => Literal::String(true_value),
+            TokenType::Number => Literal::Number(true_value.parse().unwrap()),
             _ => Literal::Nil,
         };
-        let real_column = match ttype {
-            TokenType::String => {
-                let mut line_start: usize = self.start;
-                println!("Start index: {line_start}");
-                loop {
-                    if line_start == 0 {
-                        break;
-                    }
-                    if self.chars[line_start] == '\n' {
-                        line_start += 1;
-                        break;
-                    }
-                    line_start -= 1;
-                }
-                self.start - line_start + 1
-            }
-            _ => self.column - 1,
-        };
-        let real_line = match ttype {
-            TokenType::String => {
-                let count_newlines = real_value.chars().filter(|c| *c == '\n').count();
-                self.line - count_newlines
-            }
-            _ => self.line,
+
+        let (true_line, true_start) = match ttype {
+            TokenType::String => self.find_string_start_position(true_value),
+            _ => (self.line, self.column - 1),
         };
         self.tokens
-            .push(Token::new(ttype, real_value, literal, real_line, real_column))
+            .push(Token::new(ttype, true_value, literal, true_line, true_start))
     }
 
     fn is_end(&self) -> bool {
@@ -227,9 +232,13 @@ impl<'a> Lexer<'a> {
         self.chars[self.current + 1]
     }
 
-    fn store_error(&mut self, message: String) {
-        self.errors
-            .push(ErrorMessage::new(ErrorType::LexerError, message, self.line))
+    fn store_error(&mut self, message: String, true_line: Option<usize>, true_col: Option<usize>) {
+        self.errors.push(ErrorMessage::new(
+            ErrorType::LexerError,
+            message,
+            true_line.unwrap_or(self.line),
+            true_col.unwrap_or(self.column - 1),
+        ))
     }
 
     fn build_error(&mut self) -> Box<dyn Error> {
