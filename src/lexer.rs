@@ -1,4 +1,4 @@
-use std::{collections::HashMap, error::Error};
+use std::error::Error;
 use token::{Token, TokenType};
 use crate::errors::{ErrorMessage, ErrorType, RloxError};
 
@@ -14,7 +14,6 @@ pub struct Lexer<'a> {
     chars: Vec<char>,
     tokens: Vec<Token<'a>>,
 
-    keywords: HashMap<&'static str, TokenType>,
     errors: Vec<ErrorMessage>
 }
 
@@ -22,24 +21,6 @@ impl <'a> Lexer<'a> {
     pub fn new(source: &'a str) -> Self {
         let chars: Vec<char> = source.chars().collect();
         let srclen = chars.len();
-        let kwds = HashMap::from([
-            ("and", TokenType::And),
-            ("class", TokenType::Class),
-            ("else", TokenType::Else),
-            ("false", TokenType::False),
-            ("for", TokenType::For),
-            ("fun", TokenType::Fun),
-            ("if", TokenType::If),
-            ("nil", TokenType::Nil),
-            ("or", TokenType::Or),
-            ("print", TokenType::Print),
-            ("return", TokenType::Return),
-            ("super", TokenType::Super),
-            ("this", TokenType::This),
-            ("true", TokenType::True),
-            ("var", TokenType::Var),
-            ("while", TokenType::While)
-        ]);
 
         Self {
             start: 0,
@@ -49,7 +30,6 @@ impl <'a> Lexer<'a> {
             chars: chars,
             srclen: srclen, 
             tokens: Vec::new(),
-            keywords: kwds,
             errors: Vec::new()
         }
     }
@@ -158,7 +138,7 @@ impl <'a> Lexer<'a> {
         }
         
         let value = &self.source[self.start..self.current];
-        let ttype = self.keywords.get(value).copied().unwrap_or(TokenType::Identifier);
+        let ttype = self.get_keyword_type(value).unwrap_or(TokenType::Identifier);
         self.tokens.push(Token::new(ttype, value, self.line));
     }
 
@@ -218,4 +198,25 @@ impl <'a> Lexer<'a> {
         Box::new(RloxError::new(self.errors.clone()))
     }
 
+    fn get_keyword_type(&self, value: &str) -> Option<TokenType> {
+        match value {
+            "and" => Some(TokenType::And),
+            "class" => Some(TokenType::Class),
+            "else" => Some(TokenType::Else),
+            "false" => Some(TokenType::False),
+            "for" => Some(TokenType::For),
+            "fun" => Some(TokenType::Fun),
+            "if" => Some(TokenType::If),
+            "nil" => Some(TokenType::Nil),
+            "or" => Some(TokenType::Or),
+            "print" => Some(TokenType::Print),
+            "return" => Some(TokenType::Return),
+            "super" => Some(TokenType::Super),
+            "this" => Some(TokenType::This),
+            "true" => Some(TokenType::True),
+            "var" => Some(TokenType::Var),
+            "while" => Some(TokenType::While),
+            _ => None
+        }
+    }
 }
