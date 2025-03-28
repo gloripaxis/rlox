@@ -9,19 +9,53 @@ pub enum Literal<'a> {
 
 #[derive(Debug, Copy, Clone)]
 pub enum TokenType {
-    LeftParen, RightParen, LeftBrace, RightBrace,
-    Comma, Dot, Semicolon,
-    Minus, Plus, Slash, Star,
+    // Single-symbol tokens
+    LeftParen,
+    RightParen,
+    LeftBrace,
+    RightBrace,
+    Comma,
+    Dot,
+    Semicolon,
+    Minus,
+    Plus,
+    Slash,
+    Star,
 
-    Assign, 
-    Bang, Neq, Eq, Gt, Geq, Lt, Leq,
+    // Ambiguous single or double symbol tokens
+    Assign,
+    Bang,
+    Neq,
+    Eq,
+    Gt,
+    Geq,
+    Lt,
+    Leq,
 
-    Identifier, String, Number,
+    // Variable names, String and Numeric literals
+    Identifier,
+    String,
+    Number,
 
-    And, Class, Else, False, Fun, For, If, Nil,
-    Or, Print, Return, Super, This, True, Var, While,
+    // Keywords
+    And,
+    Class,
+    Else,
+    False,
+    Fun,
+    For,
+    If,
+    Nil,
+    Or,
+    Print,
+    Return,
+    Super,
+    This,
+    True,
+    Var,
+    While,
 
-    EOF
+    EOF,
 }
 
 impl fmt::Display for TokenType {
@@ -39,14 +73,19 @@ pub struct Token<'a> {
     line: usize,
 }
 
-impl <'a> fmt::Display for Token<'a> {
+impl fmt::Display for Token<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "[{}::{:0>2}] '{}'", self.ttype, self.line, self.lexeme)
     }
 }
 
-impl <'a> Token<'a> {
+impl<'a> Token<'a> {
     pub fn new(ttype: TokenType, lexeme: &'a str, literal: Literal<'a>, line: usize) -> Self {
-        Self { ttype, lexeme, literal, line }
+        Self {
+            ttype,
+            lexeme,
+            literal,
+            line,
+        }
     }
 }

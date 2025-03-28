@@ -1,6 +1,6 @@
 use std::process;
 
-use clap::{Command, Arg};
+use clap::{Arg, Command};
 use rlox::{run_file, run_prompt};
 
 fn main() {
@@ -23,4 +23,3 @@ fn get_filename() -> Option<String> {
 
     matches.get_one::<String>("filename").cloned()
 }
-

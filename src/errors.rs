@@ -1,10 +1,9 @@
 use std::error::Error;
 use std::fmt;
 
-
 #[derive(Debug, Clone)]
 pub enum ErrorType {
-    LexerError
+    LexerError,
 }
 
 impl fmt::Display for ErrorType {
@@ -13,18 +12,19 @@ impl fmt::Display for ErrorType {
     }
 }
 
-
 #[derive(Debug, Clone)]
 pub struct ErrorMessage {
     error_type: ErrorType,
     message: String,
-    line: usize
+    line: usize,
 }
 
 impl ErrorMessage {
     pub fn new(error_type: ErrorType, message: String, line: usize) -> Self {
         Self {
-            error_type, message, line
+            error_type,
+            message,
+            line,
         }
     }
 }
@@ -34,7 +34,6 @@ impl fmt::Display for ErrorMessage {
         write!(f, "{} at line {}: {}", self.error_type, self.line, self.message)
     }
 }
-
 
 #[derive(Debug)]
 pub struct RloxError {
@@ -49,10 +48,11 @@ impl RloxError {
     }
 }
 
-
 impl fmt::Display for RloxError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let error_message = self.messages.iter()
+        let error_message = self
+            .messages
+            .iter()
             .map(|err| err.to_string())
             .collect::<Vec<_>>()
             .join("\n");

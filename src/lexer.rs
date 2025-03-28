@@ -1,6 +1,6 @@
-use std::error::Error;
-use token::{Token, TokenType, Literal};
 use crate::errors::{ErrorMessage, ErrorType, RloxError};
+use std::error::Error;
+use token::{Literal, Token, TokenType};
 
 pub mod token;
 
@@ -14,10 +14,10 @@ pub struct Lexer<'a> {
     chars: Vec<char>,
     tokens: Vec<Token<'a>>,
 
-    errors: Vec<ErrorMessage>
+    errors: Vec<ErrorMessage>,
 }
 
-impl <'a> Lexer<'a> {
+impl<'a> Lexer<'a> {
     pub fn new(source: &'a str) -> Self {
         let chars: Vec<char> = source.chars().collect();
         let srclen = chars.len();
@@ -25,12 +25,12 @@ impl <'a> Lexer<'a> {
         Self {
             start: 0,
             current: 0,
-            line: 1, 
-            source: source,
-            chars: chars,
-            srclen: srclen, 
+            line: 1,
+            source,
+            chars,
+            srclen,
             tokens: Vec::new(),
-            errors: Vec::new()
+            errors: Vec::new(),
         }
     }
 
@@ -39,7 +39,7 @@ impl <'a> Lexer<'a> {
             self.start = self.current;
             self.scan_token();
         }
-        
+
         if !self.errors.is_empty() {
             return Err(self.build_error());
         }
@@ -77,24 +77,24 @@ impl <'a> Lexer<'a> {
                 } else {
                     self.add_token(TokenType::Slash, None);
                 }
-            },
+            }
             // Regular whitespace
-            ' ' | '\r' | '\t' => {},
+            ' ' | '\r' | '\t' => {}
 
             // Newlines
             '\n' => self.line += 1,
-            
+
             // Strings
             '"' => self.scan_string(), // ? required because scan_string can throw an unrecoverable error
-            
+
             // Numbers
             '0'..='9' => self.scan_number(),
-            
+
             // Identifiers & Keywords
             'A'..='Z' | 'a'..='z' => self.scan_identifier_or_keyword(),
-            
+
             // Unexpected characters
-            _ => self.store_error(format!("Unexpected character: '{c}'"))
+            _ => self.store_error(format!("Unexpected character: '{c}'")),
         }
     }
 
@@ -111,7 +111,7 @@ impl <'a> Lexer<'a> {
             return;
         }
         self.advance();
-        let value = &self.source[self.start+1..self.current-1];
+        let value = &self.source[self.start + 1..self.current - 1];
         self.add_token(TokenType::String, Some(value));
     }
 
@@ -133,7 +133,7 @@ impl <'a> Lexer<'a> {
         while self.peek().is_ascii_alphanumeric() {
             self.advance();
         }
-        
+
         let value = &self.source[self.start..self.current];
         let ttype = self.get_keyword_type(value).unwrap_or(TokenType::Identifier);
         self.add_token(ttype, Some(value));
@@ -144,7 +144,7 @@ impl <'a> Lexer<'a> {
         let literal = match ttype {
             TokenType::String => Literal::String(real_value),
             TokenType::Number => Literal::Number(real_value.parse().unwrap()),
-            _ => Literal::Nil
+            _ => Literal::Nil,
         };
         self.tokens.push(Token::new(ttype, real_value, literal, self.line))
     }
@@ -188,13 +188,14 @@ impl <'a> Lexer<'a> {
 
     fn peek_next(&self) -> char {
         if self.current + 1 > self.srclen {
-            return '\0'
+            return '\0';
         }
-        self.chars[self.current+1]
+        self.chars[self.current + 1]
     }
 
     fn store_error(&mut self, message: String) {
-        self.errors.push(ErrorMessage::new(ErrorType::LexerError, message, self.line))
+        self.errors
+            .push(ErrorMessage::new(ErrorType::LexerError, message, self.line))
     }
 
     fn build_error(&mut self) -> Box<dyn Error> {
@@ -219,7 +220,7 @@ impl <'a> Lexer<'a> {
             "true" => Some(TokenType::True),
             "var" => Some(TokenType::Var),
             "while" => Some(TokenType::While),
-            _ => None
+            _ => None,
         }
     }
 }
