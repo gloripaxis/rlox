@@ -26,6 +26,7 @@ pub fn run_file(fname: String) -> Result<(), Box<dyn Error>> {
 }
 
 pub fn run_prompt() -> Result<(), Box<dyn Error>> {
+    println!("Welcome to Lox REPL! Press Ctrl+D to exit...");
     loop {
         print!("> ");
         io::stdout().flush()?;
@@ -37,8 +38,15 @@ pub fn run_prompt() -> Result<(), Box<dyn Error>> {
                 println!("Ctrl+D\nTerminating rlox...");
                 break;
             }
-            // TODO: Add error handling - an error in the interactive loop shouldn't kill the session
-            _ => run(source)?,
+            _ => {
+                if source == "\n" {
+                    continue;
+                }
+                let result = run(source);
+                if let Err(x) = result {
+                    eprintln!("{x}");
+                }
+            }
         }
     }
     Ok(())
