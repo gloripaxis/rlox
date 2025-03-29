@@ -1,11 +1,41 @@
 use std::fmt;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum Literal {
     Nil,
     Number(f64),
     String(String),
     Boolean(bool),
+}
+
+impl fmt::Debug for Literal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            Literal::Nil => String::from("nil"),
+            Literal::Number(x) => format!("number ({x})"),
+            Literal::String(x) => format!("string \"{x}\""),
+            Literal::Boolean(x) => format!("boolean ({x})"),
+        };
+        write!(f, "{s}")
+    }
+}
+
+impl fmt::Display for Literal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            Literal::Nil => String::from("nil"),
+            Literal::Number(x) => {
+                if x.fract().abs() < f64::EPSILON {
+                    format!("{x:.0}")
+                } else {
+                    format!("{x}")
+                }
+            }
+            Literal::String(x) => format!("\"{x}\""),
+            Literal::Boolean(x) => format!("{x}"),
+        };
+        write!(f, "{s}")
+    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
