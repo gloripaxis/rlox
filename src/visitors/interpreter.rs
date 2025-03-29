@@ -9,7 +9,7 @@ use crate::{
 fn unary_number_error(op_token: Token, right: Literal) -> RloxError {
     let (line, column) = op_token.get_location();
     let emsg = ErrorMessage::new(
-        ErrorType::RuntimeError,
+        ErrorType::Runtime,
         format!(
             "Operand of '{}' must be a number. Found {:?}",
             op_token.get_lexeme(),
@@ -24,7 +24,7 @@ fn unary_number_error(op_token: Token, right: Literal) -> RloxError {
 fn binary_number_error(op_token: Token, left: Literal, right: Literal) -> RloxError {
     let (line, column) = op_token.get_location();
     let emsg = ErrorMessage::new(
-        ErrorType::RuntimeError,
+        ErrorType::Runtime,
         format!(
             "Operands of '{}' must be numbers. Found {:?} and {:?}",
             op_token.get_lexeme(),
@@ -40,7 +40,7 @@ fn binary_number_error(op_token: Token, left: Literal, right: Literal) -> RloxEr
 fn plus_error(op_token: Token, left: Literal, right: Literal) -> RloxError {
     let (line, column) = op_token.get_location();
     let emsg = ErrorMessage::new(
-        ErrorType::RuntimeError,
+        ErrorType::Runtime,
         format!(
             "Operands of + must be either both strings or both numbers. Found {:?} and {:?}",
             left, right
@@ -54,7 +54,7 @@ fn plus_error(op_token: Token, left: Literal, right: Literal) -> RloxError {
 fn invalid_binary_operator(op_token: Token) -> RloxError {
     let (line, column) = op_token.get_location();
     let emsg = ErrorMessage::new(
-        ErrorType::RuntimeError,
+        ErrorType::Runtime,
         format!("(CRITICAL) Invalid binary operator detected: {}", op_token.get_lexeme()),
         line,
         column,
@@ -65,7 +65,7 @@ fn invalid_binary_operator(op_token: Token) -> RloxError {
 fn invalid_unary_operator(op_token: Token) -> RloxError {
     let (line, column) = op_token.get_location();
     let emsg = ErrorMessage::new(
-        ErrorType::RuntimeError,
+        ErrorType::Runtime,
         format!("(CRITICAL) Invalid unnary operator detected: {}", op_token.get_lexeme()),
         line,
         column,

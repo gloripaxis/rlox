@@ -247,7 +247,7 @@ impl<'a> Lexer<'a> {
 
     fn store_error(&mut self, message: String, true_line: Option<usize>, true_col: Option<usize>) {
         self.errors.push(ErrorMessage::new(
-            ErrorType::LexerError,
+            ErrorType::Lexer,
             message,
             true_line.unwrap_or(self.line),
             true_col.unwrap_or(self.column - 1),

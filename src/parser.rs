@@ -109,7 +109,7 @@ impl Parser {
                 let (line, column) = token.get_location();
                 let lexeme = token.get_lexeme();
                 let emsg = ErrorMessage::new(
-                    ErrorType::SyntaxError,
+                    ErrorType::Syntax,
                     format!("Expected expression at '{lexeme}'"),
                     line,
                     column,
@@ -129,7 +129,7 @@ impl Parser {
         let lexeme = token.get_lexeme();
 
         let emsg = ErrorMessage::new(
-            ErrorType::SyntaxError,
+            ErrorType::Syntax,
             format!("Missing closing parenthesis at '{lexeme}'"),
             line,
             column,

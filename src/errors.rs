@@ -3,14 +3,14 @@ use std::fmt;
 
 #[derive(Debug, Clone)]
 pub enum ErrorType {
-    LexerError,
-    SyntaxError,
-    RuntimeError,
+    Lexer,
+    Syntax,
+    Runtime,
 }
 
 impl fmt::Display for ErrorType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{:?}Error", self)
     }
 }
 
