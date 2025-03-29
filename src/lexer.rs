@@ -13,7 +13,7 @@ pub struct Lexer<'a> {
     source: &'a str,
     srclen: usize,
     chars: Vec<char>,
-    tokens: Vec<Token<'a>>,
+    tokens: Vec<Token>,
 
     errors: Vec<ErrorMessage>,
 }
@@ -36,7 +36,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    pub fn scan(mut self) -> Result<Vec<Token<'a>>, Box<dyn Error>> {
+    pub fn scan(mut self) -> Result<Vec<Token>, Box<dyn Error>> {
         while !self.is_end() {
             self.start = self.current;
             self.scan_token();
@@ -46,7 +46,13 @@ impl<'a> Lexer<'a> {
             return Err(self.build_error());
         }
 
-        let eof_token = Token::new(TokenType::EOF, "\0", Literal::Nil, self.line, self.column);
+        let eof_token = Token::new(
+            TokenType::EndOfFile,
+            String::from("\0"),
+            Literal::Nil,
+            self.line,
+            self.column,
+        );
         self.tokens.push(eof_token);
         Ok(self.tokens)
     }
@@ -122,7 +128,7 @@ impl<'a> Lexer<'a> {
         }
         self.advance();
         let value = &self.source[self.start + 1..self.current - 1];
-        self.add_token(TokenType::String, Some(value));
+        self.add_token(TokenType::String, Some(String::from(value)));
     }
 
     fn scan_number(&mut self) {
@@ -146,7 +152,7 @@ impl<'a> Lexer<'a> {
 
         let value = &self.source[self.start..self.current];
         let ttype = self.get_keyword_type(value).unwrap_or(TokenType::Identifier);
-        self.add_token(ttype, Some(value));
+        self.add_token(ttype, Some(String::from(value)));
     }
 
     fn find_string_start_position(&self, value: &str) -> (usize, usize) {
@@ -169,20 +175,25 @@ impl<'a> Lexer<'a> {
         (true_line, true_start)
     }
 
-    fn add_token(&mut self, ttype: TokenType, value: Option<&'a str>) {
-        let true_value = value.unwrap_or(&self.source[self.start..self.current]);
+    fn add_token(&mut self, ttype: TokenType, value: Option<String>) {
+        let true_value = value.unwrap_or(String::from(&self.source[self.start..self.current]));
         let literal = match ttype {
-            TokenType::String => Literal::String(true_value),
+            TokenType::String => Literal::String(true_value.to_string()),
             TokenType::Number => Literal::Number(true_value.parse().unwrap()),
             _ => Literal::Nil,
         };
 
         let (true_line, true_start) = match ttype {
-            TokenType::String => self.find_string_start_position(true_value),
+            TokenType::String => self.find_string_start_position(&true_value),
             _ => (self.line, self.column - 1),
         };
-        self.tokens
-            .push(Token::new(ttype, true_value, literal, true_line, true_start))
+        self.tokens.push(Token::new(
+            ttype,
+            true_value.to_string(),
+            literal,
+            true_line,
+            true_start,
+        ))
     }
 
     fn is_end(&self) -> bool {

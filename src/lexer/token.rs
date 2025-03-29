@@ -1,13 +1,14 @@
 use std::fmt;
 
-#[derive(Debug, Copy, Clone)]
-pub enum Literal<'a> {
+#[derive(Debug, Clone)]
+pub enum Literal {
     Nil,
     Number(f64),
-    String(&'a str),
+    String(String),
+    Boolean(bool),
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum TokenType {
     // Single-symbol tokens
     LeftParen,
@@ -55,7 +56,7 @@ pub enum TokenType {
     Var,
     While,
 
-    EOF,
+    EndOfFile,
 }
 
 impl fmt::Display for TokenType {
@@ -66,15 +67,15 @@ impl fmt::Display for TokenType {
 }
 
 #[derive(Debug, Clone)]
-pub struct Token<'a> {
+pub struct Token {
     ttype: TokenType,
-    lexeme: &'a str,
-    literal: Literal<'a>,
+    lexeme: String,
+    literal: Literal,
     line: usize,
     column: usize,
 }
 
-impl fmt::Display for Token<'_> {
+impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -84,8 +85,8 @@ impl fmt::Display for Token<'_> {
     }
 }
 
-impl<'a> Token<'a> {
-    pub fn new(ttype: TokenType, lexeme: &'a str, literal: Literal<'a>, line: usize, column: usize) -> Self {
+impl Token {
+    pub fn new(ttype: TokenType, lexeme: String, literal: Literal, line: usize, column: usize) -> Self {
         Self {
             ttype,
             lexeme,
@@ -93,5 +94,17 @@ impl<'a> Token<'a> {
             line,
             column,
         }
+    }
+
+    pub fn get_type(&self) -> TokenType {
+        self.ttype
+    }
+
+    pub fn get_literal(&self) -> Literal {
+        self.literal.clone()
+    }
+
+    pub fn get_location(&self) -> (usize, usize) {
+        (self.line, self.column)
     }
 }
