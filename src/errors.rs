@@ -5,6 +5,7 @@ use std::fmt;
 pub enum ErrorType {
     LexerError,
     SyntaxError,
+    RuntimeError,
 }
 
 impl fmt::Display for ErrorType {
