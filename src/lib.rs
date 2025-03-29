@@ -4,7 +4,7 @@ use std::{fs, io};
 
 use lexer::Lexer;
 use parser::Parser;
-use visitors::interpreter;
+use visitors::interpreter::Interpreter;
 
 mod errors;
 mod lexer;
@@ -14,7 +14,9 @@ mod visitors;
 fn run(source: String) -> Result<(), Box<dyn Error>> {
     let tokens = Lexer::new(&source).scan()?;
     let expression = Parser::new(tokens).parse()?;
-    let value = interpreter::visit(expression)?;
+
+    let interpreter = Interpreter::new();
+    let value = interpreter.execute(expression)?;
     println!("{value}");
     Ok(())
 }
