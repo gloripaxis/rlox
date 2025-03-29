@@ -4,6 +4,7 @@ use std::fmt;
 #[derive(Debug, Clone)]
 pub enum ErrorType {
     LexerError,
+    SyntaxError,
 }
 
 impl fmt::Display for ErrorType {
