@@ -180,6 +180,8 @@ impl<'a> Lexer<'a> {
         let literal = match ttype {
             TokenType::String => Literal::String(true_value.to_string()),
             TokenType::Number => Literal::Number(true_value.parse().unwrap()),
+            TokenType::True => Literal::Boolean(true),
+            TokenType::False => Literal::Boolean(false),
             _ => Literal::Nil,
         };
 
