@@ -1,58 +1,36 @@
-use crate::{
-    lexer::token::{Literal, TokenType},
-    parser::expr::Expression,
-};
+use crate::{lexer::token::Literal, parser::expr::Expression};
 
 pub fn visit(expr: Expression) -> String {
     let mut printout = String::new();
     match expr {
-        Expression::Literal(lit) => match lit {
+        Expression::Literal(token) => match token.get_literal() {
             Literal::Nil => printout.push_str("nil"),
             Literal::Number(x) => printout.push_str(&x.to_string()),
             Literal::String(x) => printout.push_str(&x),
             Literal::Boolean(x) => printout.push_str(&x.to_string()),
         },
-        Expression::Binary(l, o, r) => {
+        Expression::Binary(left_expr, op_token, right_expr) => {
             printout.push('(');
-            printout.push_str(&repr_token_type(o));
+            printout.push_str(op_token.get_lexeme());
             printout.push(' ');
-            printout.push_str(&visit(*l));
+            printout.push_str(&visit(*left_expr));
             printout.push(' ');
-            printout.push_str(&visit(*r));
+            printout.push_str(&visit(*right_expr));
             printout.push(')');
         }
-        Expression::Grouping(e) => {
+        Expression::Grouping(expr) => {
             printout.push('(');
             printout.push_str("group ");
-            printout.push_str(&visit(*e));
+            printout.push_str(&visit(*expr));
             printout.push(')');
         }
-        Expression::Unary(o, r) => {
+        Expression::Unary(op_token, right_expr) => {
             printout.push('(');
-            printout.push_str(&repr_token_type(o));
+            printout.push_str(op_token.get_lexeme());
             printout.push(' ');
-            printout.push_str(&visit(*r));
+            printout.push_str(&visit(*right_expr));
             printout.push(')');
         }
     }
     printout
-}
-
-fn repr_token_type(tt: TokenType) -> String {
-    let s = match tt {
-        TokenType::Bang => "!",
-        TokenType::Eq => "==",
-        TokenType::Neq => "!=",
-        TokenType::Gt => ">",
-        TokenType::Geq => ">=",
-        TokenType::Lt => "<",
-        TokenType::Leq => "<=",
-        TokenType::Plus => "+",
-        TokenType::Minus => "-",
-        TokenType::Star => "*",
-        TokenType::Slash => "/",
-        TokenType::Assign => "=",
-        _ => "",
-    };
-    String::from(s)
 }
