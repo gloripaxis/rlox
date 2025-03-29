@@ -3,15 +3,19 @@ use std::io::Write;
 use std::{fs, io};
 
 use lexer::Lexer;
+use parser::Parser;
+use visitors::printer;
 
 mod errors;
 mod lexer;
+mod parser;
+mod visitors;
 
 fn run(source: String) -> Result<(), Box<dyn Error>> {
-    let result = Lexer::new(&source).scan()?;
-    for tok in result.iter() {
-        println!("{tok}");
-    }
+    let tokens = Lexer::new(&source).scan()?;
+    let expression = Parser::new(tokens).parse()?;
+    let repr = printer::visit(expression);
+    println!("{repr}");
     Ok(())
 }
 
