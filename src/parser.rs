@@ -4,7 +4,7 @@ use expr::Expression;
 
 use crate::{
     errors::{ErrorMessage, ErrorType, RloxError},
-    lexer::token::{Literal, Token, TokenType},
+    lexer::token::{Token, TokenType},
 };
 
 pub mod expr;
@@ -30,9 +30,9 @@ impl Parser {
     fn equality(&mut self) -> Result<Expression, Box<dyn Error>> {
         let mut expr: Expression = self.comparison()?;
         while self.advance_maybe(&[TokenType::Neq, TokenType::Eq]) {
-            let ttype = self.previous().get_type();
+            let token = self.previous().clone();
             let right = self.comparison()?;
-            expr = Expression::Binary(Box::new(expr), ttype, Box::new(right));
+            expr = Expression::Binary(Box::new(expr), token, Box::new(right));
         }
         Ok(expr)
     }
@@ -41,9 +41,9 @@ impl Parser {
         let mut expr = self.term()?;
 
         while self.advance_maybe(&[TokenType::Gt, TokenType::Geq, TokenType::Lt, TokenType::Leq]) {
-            let operator = self.previous().get_type();
+            let token = self.previous().clone();
             let right = self.term()?;
-            expr = Expression::Binary(Box::new(expr), operator, Box::new(right));
+            expr = Expression::Binary(Box::new(expr), token, Box::new(right));
         }
         Ok(expr)
     }
@@ -52,9 +52,9 @@ impl Parser {
         let mut expr = self.factor()?;
 
         while self.advance_maybe(&[TokenType::Minus, TokenType::Plus]) {
-            let operator = self.previous().get_type();
+            let token = self.previous().clone();
             let right = self.factor()?;
-            expr = Expression::Binary(Box::new(expr), operator, Box::new(right));
+            expr = Expression::Binary(Box::new(expr), token, Box::new(right));
         }
         Ok(expr)
     }
@@ -63,39 +63,40 @@ impl Parser {
         let mut expr = self.unary()?;
 
         while self.advance_maybe(&[TokenType::Slash, TokenType::Star]) {
-            let operator = self.previous().get_type();
+            let token = self.previous().clone();
             let right = self.unary()?;
-            expr = Expression::Binary(Box::new(expr), operator, Box::new(right));
+            expr = Expression::Binary(Box::new(expr), token, Box::new(right));
         }
         Ok(expr)
     }
 
     fn unary(&mut self) -> Result<Expression, Box<dyn Error>> {
         if self.advance_maybe(&[TokenType::Bang, TokenType::Minus]) {
-            let operator = self.previous().get_type();
+            let token = self.previous().clone();
             let right = self.unary()?;
-            return Ok(Expression::Unary(operator, Box::new(right)));
+            return Ok(Expression::Unary(token, Box::new(right)));
         }
         self.primary()
     }
 
     fn primary(&mut self) -> Result<Expression, Box<dyn Error>> {
-        let expr = match self.peek().get_type() {
+        let token = self.peek().clone();
+        let expr = match token.get_type() {
             TokenType::False => {
                 self.advance();
-                Expression::Literal(Literal::Boolean(false))
+                Expression::Literal(token)
             }
             TokenType::True => {
                 self.advance();
-                Expression::Literal(Literal::Boolean(true))
+                Expression::Literal(token)
             }
             TokenType::Nil => {
                 self.advance();
-                Expression::Literal(Literal::Nil)
+                Expression::Literal(token)
             }
             TokenType::Number | TokenType::String => {
                 self.advance();
-                Expression::Literal(self.previous().get_literal())
+                Expression::Literal(token)
             }
             TokenType::LeftParen => {
                 self.advance();

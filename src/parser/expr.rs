@@ -1,9 +1,9 @@
-use crate::lexer::token::{Literal, TokenType};
+use crate::lexer::token::Token;
 
 #[derive(Debug, Clone)]
 pub enum Expression {
-    Binary(Box<Expression>, TokenType, Box<Expression>),
-    Unary(TokenType, Box<Expression>),
+    Binary(Box<Expression>, Token, Box<Expression>),
+    Unary(Token, Box<Expression>),
     Grouping(Box<Expression>),
-    Literal(Literal),
+    Literal(Token),
 }
