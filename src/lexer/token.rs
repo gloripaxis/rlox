@@ -104,6 +104,10 @@ impl Token {
         self.literal.clone()
     }
 
+    pub fn get_lexeme(&self) -> &str {
+        &self.lexeme
+    }
+
     pub fn get_location(&self) -> (usize, usize) {
         (self.line, self.column)
     }
