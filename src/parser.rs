@@ -76,6 +76,9 @@ impl Parser {
         if self.advance_maybe(&[TokenType::LeftBrace]) {
             return self.block_stmt();
         }
+        if self.advance_maybe(&[TokenType::If]) {
+            return self.if_stmt();
+        }
         self.expr_stmt()
     }
 
@@ -98,6 +101,23 @@ impl Parser {
         Ok(Statement::Block(statements))
     }
 
+    fn if_stmt(&mut self) -> Result<Statement, ErrorMessage> {
+        self.expect(TokenType::LeftParen, "Expect '(' after 'if'")?;
+        let condition = self.expression()?;
+        self.expect(TokenType::RightParen, "Expect ')' after 'if' condition")?;
+
+        let then_branch = self.statement()?;
+        let else_branch = match self.advance_maybe(&[TokenType::Else]) {
+            true => {
+                let else_stmt = self.statement()?;
+                Some(Box::new(else_stmt))
+            }
+            false => None,
+        };
+
+        Ok(Statement::If(condition, Box::new(then_branch), else_branch))
+    }
+
     fn expr_stmt(&mut self) -> Result<Statement, ErrorMessage> {
         let expr = self.expression()?;
         self.expect(TokenType::Semicolon, "Expected ';' after an expression statement")?;
@@ -109,7 +129,7 @@ impl Parser {
     }
 
     fn assign_expr(&mut self) -> Result<Expression, ErrorMessage> {
-        let expr = self.equality_expr()?;
+        let expr = self.or_expr()?;
 
         if self.advance_maybe(&[TokenType::Assign]) {
             let eq_token = self.previous();
@@ -127,6 +147,30 @@ impl Parser {
                 );
                 return Err(emsg);
             }
+        }
+
+        Ok(expr)
+    }
+
+    fn or_expr(&mut self) -> Result<Expression, ErrorMessage> {
+        let mut expr = self.and_expr()?;
+
+        while self.advance_maybe(&[TokenType::Or]) {
+            let operator = self.previous().clone();
+            let right = self.and_expr()?;
+            expr = Expression::Logical(Box::new(expr), operator, Box::new(right));
+        }
+
+        Ok(expr)
+    }
+
+    fn and_expr(&mut self) -> Result<Expression, ErrorMessage> {
+        let mut expr = self.equality_expr()?;
+
+        while self.advance_maybe(&[TokenType::And]) {
+            let operator = self.previous().clone();
+            let right = self.equality_expr()?;
+            expr = Expression::Logical(Box::new(expr), operator, Box::new(right));
         }
 
         Ok(expr)

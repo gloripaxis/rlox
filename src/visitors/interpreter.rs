@@ -58,6 +58,17 @@ impl Interpreter {
                 }
                 self.env_stack.pop();
             }
+            Statement::If(cond, br_then, br_else) => {
+                let value = self.evaluate(cond)?;
+                match is_truthy(&value) {
+                    true => self.execute(br_then)?,
+                    false => {
+                        if let Some(else_stmt) = br_else {
+                            self.execute(else_stmt)?;
+                        }
+                    }
+                };
+            }
         }
         Ok(())
     }
@@ -70,6 +81,7 @@ impl Interpreter {
             Expression::Unary(token, right) => self.eval_unary(token, right),
             Expression::Variable(token) => self.env_stack.last().unwrap().borrow().get(token),
             Expression::Assign(token, value) => self.eval_assign(token, value),
+            Expression::Logical(left, token, right) => self.eval_logic(left, token, right),
         }
     }
 
@@ -128,7 +140,7 @@ impl Interpreter {
                 Literal::Number(x) => Ok(Literal::Number(-x)),
                 _ => Err(Box::new(unary_number_error(token, right))),
             },
-            TokenType::Bang => Ok(Literal::Boolean(!is_truthy(right))),
+            TokenType::Bang => Ok(Literal::Boolean(!is_truthy(&right))),
             _ => Err(Box::new(invalid_unary_operator(token))),
         }
     }
@@ -138,12 +150,28 @@ impl Interpreter {
         self.env_stack.last().unwrap().borrow_mut().assign(token, lit.clone())?;
         Ok(lit)
     }
+
+    fn eval_logic(&mut self, left: &Expression, token: &Token, right: &Expression) -> Result<Literal, Box<dyn Error>> {
+        let left_val = self.evaluate(left)?;
+
+        // NOTE: Original implementation returned the literal value of the operand, not strictly true or false
+        // I find that disgusting and so decided to strictly return true or false :)
+        let truthy = is_truthy(&left_val);
+        match token.get_type() {
+            TokenType::Or if truthy => Ok(Literal::Boolean(true)),
+            TokenType::And if !truthy => Ok(Literal::Boolean(false)),
+            _ => {
+                let val = self.evaluate(right)?;
+                Ok(Literal::Boolean(is_truthy(&val)))
+            }
+        }
+    }
 }
 
-fn is_truthy(literal: Literal) -> bool {
+fn is_truthy(literal: &Literal) -> bool {
     match literal {
         Literal::Nil => false,
-        Literal::Boolean(x) => x,
+        Literal::Boolean(x) => *x,
         _ => true,
     }
 }

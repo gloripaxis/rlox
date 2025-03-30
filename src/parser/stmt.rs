@@ -7,4 +7,5 @@ pub enum Statement {
     Print(Expression),
     Var(Token, Option<Expression>),
     Block(Vec<Statement>),
+    If(Expression, Box<Statement>, Option<Box<Statement>>),
 }
