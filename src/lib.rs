@@ -2,33 +2,39 @@ use std::error::Error;
 use std::io::Write;
 use std::{fs, io};
 
+use env::Environment;
 use lexer::Lexer;
 use parser::Parser;
 use visitors::interpreter::Interpreter;
 
+mod env;
 mod errors;
 mod lexer;
 mod parser;
 mod visitors;
 
-fn run(source: String) -> Result<(), Box<dyn Error>> {
+fn run(source: String, interpreter: &mut Interpreter) -> Result<(), Box<dyn Error>> {
     let tokens = Lexer::new(&source).scan()?;
-    let expression = Parser::new(tokens).parse()?;
+    let program = Parser::new(tokens).parse()?;
 
-    let interpreter = Interpreter::new();
-    let value = interpreter.execute(&expression)?;
-    println!("{value}");
+    interpreter.interpret(program)?;
     Ok(())
 }
 
 pub fn run_file(fname: String) -> Result<(), Box<dyn Error>> {
     let contents = fs::read_to_string(&fname)?;
-    run(contents)?;
+
+    let environ = Environment::new();
+    let mut interpreter = Interpreter::new(environ);
+    run(contents, &mut interpreter)?;
     Ok(())
 }
 
 pub fn run_prompt() -> Result<(), Box<dyn Error>> {
     println!("Welcome to Lox REPL! Press Ctrl+D to exit...");
+
+    let environ = Environment::new();
+    let mut interpreter = Interpreter::new(environ);
     loop {
         print!("> ");
         io::stdout().flush()?;
@@ -44,7 +50,7 @@ pub fn run_prompt() -> Result<(), Box<dyn Error>> {
                 if source == "\n" {
                     continue;
                 }
-                let result = run(source);
+                let result = run(source, &mut interpreter);
                 if let Err(x) = result {
                     eprintln!("{x}");
                 }

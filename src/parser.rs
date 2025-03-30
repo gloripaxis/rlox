@@ -1,6 +1,7 @@
 use std::error::Error;
 
 use expr::Expression;
+use stmt::Statement;
 
 use crate::{
     errors::{ErrorMessage, ErrorType, RloxError},
@@ -8,26 +9,114 @@ use crate::{
 };
 
 pub mod expr;
+pub mod stmt;
 
 pub struct Parser {
     tokens: Vec<Token>,
     current: usize,
+    program: Vec<Statement>,
+    errors: Vec<ErrorMessage>,
 }
 
 impl Parser {
     pub fn new(tokens: Vec<Token>) -> Self {
-        Self { tokens, current: 0 }
+        Self {
+            tokens,
+            current: 0,
+            program: vec![],
+            errors: vec![],
+        }
     }
 
-    pub fn parse(&mut self) -> Result<Expression, Box<dyn Error>> {
-        self.expression()
+    pub fn parse(mut self) -> Result<Vec<Statement>, Box<dyn Error>> {
+        while !self.is_end() {
+            let stmt = self.declaration();
+            if let Some(x) = stmt {
+                self.program.push(x);
+            }
+        }
+
+        if !self.errors.is_empty() {
+            Err(self.build_error())
+        } else {
+            Ok(self.program)
+        }
     }
 
-    fn expression(&mut self) -> Result<Expression, Box<dyn Error>> {
-        self.equality()
+    fn declaration(&mut self) -> Option<Statement> {
+        let result = match self.advance_maybe(&[TokenType::Var]) {
+            true => self.var_declaration(),
+            false => self.statement(),
+        };
+        match result {
+            Ok(x) => Some(x),
+            Err(x) => {
+                self.errors.push(x);
+                self.synchronize();
+                None
+            }
+        }
     }
 
-    fn equality(&mut self) -> Result<Expression, Box<dyn Error>> {
+    fn var_declaration(&mut self) -> Result<Statement, ErrorMessage> {
+        let name = self.expect(TokenType::Identifier, "Expected variable name")?.clone();
+        let mut initializer: Option<Expression> = None;
+        if self.advance_maybe(&[TokenType::Assign]) {
+            let expr = self.expression()?;
+            initializer = Some(expr);
+        }
+        self.expect(TokenType::Semicolon, "Expected ';' after variable declaration")?;
+        Ok(Statement::Var(name, initializer))
+    }
+
+    fn statement(&mut self) -> Result<Statement, ErrorMessage> {
+        if self.advance_maybe(&[TokenType::Print]) {
+            return self.print_stmt();
+        }
+        self.expression_stmt()
+    }
+
+    fn print_stmt(&mut self) -> Result<Statement, ErrorMessage> {
+        let expr = self.expression()?;
+        self.expect(TokenType::Semicolon, "Expected ';' after a print statement")?;
+        Ok(Statement::Print(expr))
+    }
+
+    fn expression_stmt(&mut self) -> Result<Statement, ErrorMessage> {
+        let expr = self.expression()?;
+        self.expect(TokenType::Semicolon, "Expected ';' after an expression statement")?;
+        Ok(Statement::Expression(expr))
+    }
+
+    fn expression(&mut self) -> Result<Expression, ErrorMessage> {
+        self.assignment()
+    }
+
+    fn assignment(&mut self) -> Result<Expression, ErrorMessage> {
+        let expr = self.equality()?;
+
+        if self.advance_maybe(&[TokenType::Assign]) {
+            let eq_token = self.previous();
+            let (line, column) = eq_token.get_location();
+            let value = self.assignment()?;
+
+            if let Expression::Variable(name) = expr {
+                return Ok(Expression::Assign(name, Box::new(value)));
+            } else {
+                let emsg = ErrorMessage::new(
+                    ErrorType::Syntax,
+                    String::from("Invalid assignment target"),
+                    line,
+                    column,
+                );
+                return Err(emsg);
+            }
+        }
+
+        Ok(expr)
+    }
+
+    fn equality(&mut self) -> Result<Expression, ErrorMessage> {
         let mut expr: Expression = self.comparison()?;
         while self.advance_maybe(&[TokenType::Neq, TokenType::Eq]) {
             let token = self.previous().clone();
@@ -37,7 +126,7 @@ impl Parser {
         Ok(expr)
     }
 
-    fn comparison(&mut self) -> Result<Expression, Box<dyn Error>> {
+    fn comparison(&mut self) -> Result<Expression, ErrorMessage> {
         let mut expr = self.term()?;
 
         while self.advance_maybe(&[TokenType::Gt, TokenType::Geq, TokenType::Lt, TokenType::Leq]) {
@@ -48,7 +137,7 @@ impl Parser {
         Ok(expr)
     }
 
-    fn term(&mut self) -> Result<Expression, Box<dyn Error>> {
+    fn term(&mut self) -> Result<Expression, ErrorMessage> {
         let mut expr = self.factor()?;
 
         while self.advance_maybe(&[TokenType::Minus, TokenType::Plus]) {
@@ -59,7 +148,7 @@ impl Parser {
         Ok(expr)
     }
 
-    fn factor(&mut self) -> Result<Expression, Box<dyn Error>> {
+    fn factor(&mut self) -> Result<Expression, ErrorMessage> {
         let mut expr = self.unary()?;
 
         while self.advance_maybe(&[TokenType::Slash, TokenType::Star]) {
@@ -70,7 +159,7 @@ impl Parser {
         Ok(expr)
     }
 
-    fn unary(&mut self) -> Result<Expression, Box<dyn Error>> {
+    fn unary(&mut self) -> Result<Expression, ErrorMessage> {
         if self.advance_maybe(&[TokenType::Bang, TokenType::Minus]) {
             let token = self.previous().clone();
             let right = self.unary()?;
@@ -79,7 +168,7 @@ impl Parser {
         self.primary()
     }
 
-    fn primary(&mut self) -> Result<Expression, Box<dyn Error>> {
+    fn primary(&mut self) -> Result<Expression, ErrorMessage> {
         let token = self.peek().clone();
         let expr = match token.get_type() {
             TokenType::False => {
@@ -98,10 +187,14 @@ impl Parser {
                 self.advance();
                 Expression::Literal(token)
             }
+            TokenType::Identifier => {
+                self.advance();
+                Expression::Variable(token)
+            }
             TokenType::LeftParen => {
                 self.advance();
                 let expr = self.expression()?;
-                self.expect(TokenType::RightParen)?;
+                self.expect(TokenType::RightParen, "Missing closing parenthesis")?;
                 Expression::Grouping(Box::new(expr))
             }
             _ => {
@@ -114,27 +207,44 @@ impl Parser {
                     line,
                     column,
                 );
-                return Err(Box::new(RloxError::new(vec![emsg])));
+                return Err(emsg);
             }
         };
         Ok(expr)
     }
 
-    fn expect(&mut self, tt: TokenType) -> Result<&Token, Box<dyn Error>> {
+    fn synchronize(&mut self) {
+        self.advance();
+
+        while !self.is_end() {
+            if self.previous().get_type() == TokenType::Semicolon {
+                return;
+            }
+
+            match self.peek().get_type() {
+                TokenType::Class
+                | TokenType::Fun
+                | TokenType::Var
+                | TokenType::For
+                | TokenType::If
+                | TokenType::While
+                | TokenType::Print
+                | TokenType::Return => return,
+                _ => self.advance(),
+            };
+        }
+    }
+
+    fn expect(&mut self, tt: TokenType, msg: &str) -> Result<&Token, ErrorMessage> {
         if self.is_type(tt) {
             return Ok(self.advance());
         }
-        let token = self.peek();
+        let token = if self.is_end() { self.previous() } else { self.peek() };
         let (line, column) = token.get_location();
         let lexeme = token.get_lexeme();
 
-        let emsg = ErrorMessage::new(
-            ErrorType::Syntax,
-            format!("Missing closing parenthesis at '{lexeme}'"),
-            line,
-            column,
-        );
-        Err(Box::new(RloxError::new(vec![emsg])))
+        let emsg = ErrorMessage::new(ErrorType::Syntax, format!("{msg} at '{lexeme}'"), line, column);
+        Err(emsg)
     }
 
     fn advance(&mut self) -> &Token {
@@ -174,5 +284,9 @@ impl Parser {
             return true;
         }
         false
+    }
+
+    fn build_error(&mut self) -> Box<dyn Error> {
+        Box::new(RloxError::new(self.errors.clone()))
     }
 }
