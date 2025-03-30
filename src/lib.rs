@@ -2,7 +2,6 @@ use std::error::Error;
 use std::io::Write;
 use std::{fs, io};
 
-use env::Environment;
 use lexer::Lexer;
 use parser::Parser;
 use visitors::interpreter::Interpreter;
@@ -24,8 +23,7 @@ fn run(source: String, interpreter: &mut Interpreter) -> Result<(), Box<dyn Erro
 pub fn run_file(fname: String) -> Result<(), Box<dyn Error>> {
     let contents = fs::read_to_string(&fname)?;
 
-    let environ = Environment::new();
-    let mut interpreter = Interpreter::new(environ);
+    let mut interpreter = Interpreter::new();
     run(contents, &mut interpreter)?;
     Ok(())
 }
@@ -33,8 +31,7 @@ pub fn run_file(fname: String) -> Result<(), Box<dyn Error>> {
 pub fn run_prompt() -> Result<(), Box<dyn Error>> {
     println!("Welcome to Lox REPL! Press Ctrl+D to exit...");
 
-    let environ = Environment::new();
-    let mut interpreter = Interpreter::new(environ);
+    let mut interpreter = Interpreter::new();
     loop {
         print!("> ");
         io::stdout().flush()?;

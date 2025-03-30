@@ -45,7 +45,7 @@ impl Parser {
 
     fn declaration(&mut self) -> Option<Statement> {
         let result = match self.advance_maybe(&[TokenType::Var]) {
-            true => self.var_declaration(),
+            true => self.var_decl(),
             false => self.statement(),
         };
         match result {
@@ -58,7 +58,7 @@ impl Parser {
         }
     }
 
-    fn var_declaration(&mut self) -> Result<Statement, ErrorMessage> {
+    fn var_decl(&mut self) -> Result<Statement, ErrorMessage> {
         let name = self.expect(TokenType::Identifier, "Expected variable name")?.clone();
         let mut initializer: Option<Expression> = None;
         if self.advance_maybe(&[TokenType::Assign]) {
@@ -73,7 +73,10 @@ impl Parser {
         if self.advance_maybe(&[TokenType::Print]) {
             return self.print_stmt();
         }
-        self.expression_stmt()
+        if self.advance_maybe(&[TokenType::LeftBrace]) {
+            return self.block_stmt();
+        }
+        self.expr_stmt()
     }
 
     fn print_stmt(&mut self) -> Result<Statement, ErrorMessage> {
@@ -82,23 +85,36 @@ impl Parser {
         Ok(Statement::Print(expr))
     }
 
-    fn expression_stmt(&mut self) -> Result<Statement, ErrorMessage> {
+    fn block_stmt(&mut self) -> Result<Statement, ErrorMessage> {
+        let mut statements: Vec<Statement> = vec![];
+        while !self.is_type(TokenType::RightBrace) && !self.is_end() {
+            let stmt = self.declaration();
+            match stmt {
+                None => {}
+                Some(s) => statements.push(s),
+            }
+        }
+        self.expect(TokenType::RightBrace, "Expect '}' after block")?;
+        Ok(Statement::Block(statements))
+    }
+
+    fn expr_stmt(&mut self) -> Result<Statement, ErrorMessage> {
         let expr = self.expression()?;
         self.expect(TokenType::Semicolon, "Expected ';' after an expression statement")?;
         Ok(Statement::Expression(expr))
     }
 
     fn expression(&mut self) -> Result<Expression, ErrorMessage> {
-        self.assignment()
+        self.assign_expr()
     }
 
-    fn assignment(&mut self) -> Result<Expression, ErrorMessage> {
-        let expr = self.equality()?;
+    fn assign_expr(&mut self) -> Result<Expression, ErrorMessage> {
+        let expr = self.equality_expr()?;
 
         if self.advance_maybe(&[TokenType::Assign]) {
             let eq_token = self.previous();
             let (line, column) = eq_token.get_location();
-            let value = self.assignment()?;
+            let value = self.assign_expr()?;
 
             if let Expression::Variable(name) = expr {
                 return Ok(Expression::Assign(name, Box::new(value)));
@@ -116,59 +132,59 @@ impl Parser {
         Ok(expr)
     }
 
-    fn equality(&mut self) -> Result<Expression, ErrorMessage> {
-        let mut expr: Expression = self.comparison()?;
+    fn equality_expr(&mut self) -> Result<Expression, ErrorMessage> {
+        let mut expr: Expression = self.comparison_expr()?;
         while self.advance_maybe(&[TokenType::Neq, TokenType::Eq]) {
             let token = self.previous().clone();
-            let right = self.comparison()?;
+            let right = self.comparison_expr()?;
             expr = Expression::Binary(Box::new(expr), token, Box::new(right));
         }
         Ok(expr)
     }
 
-    fn comparison(&mut self) -> Result<Expression, ErrorMessage> {
-        let mut expr = self.term()?;
+    fn comparison_expr(&mut self) -> Result<Expression, ErrorMessage> {
+        let mut expr = self.term_expr()?;
 
         while self.advance_maybe(&[TokenType::Gt, TokenType::Geq, TokenType::Lt, TokenType::Leq]) {
             let token = self.previous().clone();
-            let right = self.term()?;
+            let right = self.term_expr()?;
             expr = Expression::Binary(Box::new(expr), token, Box::new(right));
         }
         Ok(expr)
     }
 
-    fn term(&mut self) -> Result<Expression, ErrorMessage> {
-        let mut expr = self.factor()?;
+    fn term_expr(&mut self) -> Result<Expression, ErrorMessage> {
+        let mut expr = self.factor_expr()?;
 
         while self.advance_maybe(&[TokenType::Minus, TokenType::Plus]) {
             let token = self.previous().clone();
-            let right = self.factor()?;
+            let right = self.factor_expr()?;
             expr = Expression::Binary(Box::new(expr), token, Box::new(right));
         }
         Ok(expr)
     }
 
-    fn factor(&mut self) -> Result<Expression, ErrorMessage> {
-        let mut expr = self.unary()?;
+    fn factor_expr(&mut self) -> Result<Expression, ErrorMessage> {
+        let mut expr = self.unary_expr()?;
 
         while self.advance_maybe(&[TokenType::Slash, TokenType::Star]) {
             let token = self.previous().clone();
-            let right = self.unary()?;
+            let right = self.unary_expr()?;
             expr = Expression::Binary(Box::new(expr), token, Box::new(right));
         }
         Ok(expr)
     }
 
-    fn unary(&mut self) -> Result<Expression, ErrorMessage> {
+    fn unary_expr(&mut self) -> Result<Expression, ErrorMessage> {
         if self.advance_maybe(&[TokenType::Bang, TokenType::Minus]) {
             let token = self.previous().clone();
-            let right = self.unary()?;
+            let right = self.unary_expr()?;
             return Ok(Expression::Unary(token, Box::new(right)));
         }
-        self.primary()
+        self.primary_expr()
     }
 
-    fn primary(&mut self) -> Result<Expression, ErrorMessage> {
+    fn primary_expr(&mut self) -> Result<Expression, ErrorMessage> {
         let token = self.peek().clone();
         let expr = match token.get_type() {
             TokenType::False => {

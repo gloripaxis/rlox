@@ -6,4 +6,5 @@ pub enum Statement {
     Expression(Expression),
     Print(Expression),
     Var(Token, Option<Expression>),
+    Block(Vec<Statement>),
 }

@@ -1,4 +1,4 @@
-use std::error::Error;
+use std::{cell::RefCell, error::Error, rc::Rc};
 
 use crate::{
     env::Environment,
@@ -8,12 +8,14 @@ use crate::{
 };
 
 pub struct Interpreter {
-    env: Environment,
+    env_stack: Vec<Rc<RefCell<Environment>>>,
 }
 
 impl Interpreter {
-    pub fn new(env: Environment) -> Self {
-        Self { env }
+    pub fn new() -> Self {
+        Self {
+            env_stack: vec![Rc::new(RefCell::new(Environment::new(None)))],
+        }
     }
 
     pub fn interpret(&mut self, program: Vec<Statement>) -> Result<(), Box<dyn Error>> {
@@ -37,7 +39,24 @@ impl Interpreter {
                     Some(x) => self.evaluate(x)?,
                     None => Literal::Nil,
                 };
-                self.env.define(String::from(token.get_lexeme()), value);
+                self.env_stack
+                    .last()
+                    .unwrap()
+                    .borrow_mut()
+                    .define(String::from(token.get_lexeme()), value);
+            }
+            Statement::Block(stmts) => {
+                let new_env = Environment::new(Some(Rc::clone(self.env_stack.last().unwrap())));
+                self.env_stack.push(Rc::new(RefCell::new(new_env)));
+
+                for stmt in stmts.iter() {
+                    let result = self.execute(stmt);
+                    if let Err(x) = result {
+                        self.env_stack.pop();
+                        return Err(x);
+                    }
+                }
+                self.env_stack.pop();
             }
         }
         Ok(())
@@ -49,7 +68,7 @@ impl Interpreter {
             Expression::Binary(left, token, right) => self.eval_binary(left, token, right),
             Expression::Grouping(expr) => self.evaluate(expr),
             Expression::Unary(token, right) => self.eval_unary(token, right),
-            Expression::Variable(token) => self.env.get(token),
+            Expression::Variable(token) => self.env_stack.last().unwrap().borrow().get(token),
             Expression::Assign(token, value) => self.eval_assign(token, value),
         }
     }
@@ -116,7 +135,7 @@ impl Interpreter {
 
     fn eval_assign(&mut self, token: &Token, value: &Expression) -> Result<Literal, Box<dyn Error>> {
         let lit = self.evaluate(value)?;
-        self.env.assign(token, lit.clone())?;
+        self.env_stack.last().unwrap().borrow_mut().assign(token, lit.clone())?;
         Ok(lit)
     }
 }
