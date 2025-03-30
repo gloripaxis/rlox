@@ -1,36 +1,32 @@
-use crate::{lexer::token::Literal, parser::expr::Expression};
+use crate::parser::expr::Expression;
 
-pub fn visit(expr: Expression) -> String {
-    let mut printout = String::new();
-    match expr {
-        Expression::Literal(token) => match token.get_literal() {
-            Literal::Nil => printout.push_str("nil"),
-            Literal::Number(x) => printout.push_str(&x.to_string()),
-            Literal::String(x) => printout.push_str(&x),
-            Literal::Boolean(x) => printout.push_str(&x.to_string()),
-        },
-        Expression::Binary(left_expr, op_token, right_expr) => {
-            printout.push('(');
-            printout.push_str(op_token.get_lexeme());
-            printout.push(' ');
-            printout.push_str(&visit(*left_expr));
-            printout.push(' ');
-            printout.push_str(&visit(*right_expr));
-            printout.push(')');
-        }
-        Expression::Grouping(expr) => {
-            printout.push('(');
-            printout.push_str("group ");
-            printout.push_str(&visit(*expr));
-            printout.push(')');
-        }
-        Expression::Unary(op_token, right_expr) => {
-            printout.push('(');
-            printout.push_str(op_token.get_lexeme());
-            printout.push(' ');
-            printout.push_str(&visit(*right_expr));
-            printout.push(')');
-        }
+pub struct ASTPrinter {}
+
+impl ASTPrinter {
+    pub fn new() -> Self {
+        Self {}
     }
-    printout
+
+    pub fn repr(&self, expr: &Expression) -> String {
+        let mut ast = String::new();
+        match expr {
+            Expression::Literal(token) => ast.push_str(&format!("{}", token.get_literal())),
+            Expression::Binary(left_expr, op_token, right_expr) => {
+                ast.push_str(&format!(
+                    "({} {} {})",
+                    op_token.get_lexeme(),
+                    self.repr(left_expr),
+                    self.repr(right_expr)
+                ));
+            }
+            Expression::Grouping(expr) => {
+                ast.push_str(&format!("(group {})", self.repr(expr)));
+            }
+            Expression::Unary(op_token, right_expr) => {
+                ast.push_str(&format!("({} {})", op_token.get_lexeme(), self.repr(right_expr)));
+            }
+        }
+
+        ast
+    }
 }
