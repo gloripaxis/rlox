@@ -13,12 +13,12 @@ impl Interpreter {
         Self {}
     }
 
-    pub fn execute(&self, expr: Expression) -> Result<Literal, Box<dyn Error>> {
+    pub fn execute(&self, expr: &Expression) -> Result<Literal, Box<dyn Error>> {
         match expr {
             Expression::Literal(token) => self.execute_literal(token.get_literal()),
-            Expression::Binary(left_expr, token, right_expr) => self.execute_binary(*left_expr, token, *right_expr),
-            Expression::Grouping(expr) => self.execute(*expr),
-            Expression::Unary(token, right_expr) => self.execute_unary(token, *right_expr),
+            Expression::Binary(left_expr, token, right_expr) => self.execute_binary(left_expr, token, right_expr),
+            Expression::Grouping(expr) => self.execute(expr),
+            Expression::Unary(token, right_expr) => self.execute_unary(token, right_expr),
         }
     }
 
@@ -28,9 +28,9 @@ impl Interpreter {
 
     fn execute_binary(
         &self,
-        left_expr: Expression,
-        token: Token,
-        right_expr: Expression,
+        left_expr: &Expression,
+        token: &Token,
+        right_expr: &Expression,
     ) -> Result<Literal, Box<dyn Error>> {
         let left = self.execute(left_expr)?;
         let right = self.execute(right_expr)?;
@@ -75,7 +75,7 @@ impl Interpreter {
         }
     }
 
-    fn execute_unary(&self, token: Token, right_expr: Expression) -> Result<Literal, Box<dyn Error>> {
+    fn execute_unary(&self, token: &Token, right_expr: &Expression) -> Result<Literal, Box<dyn Error>> {
         let right = self.execute(right_expr)?;
         match token.get_type() {
             TokenType::Minus => match right {
@@ -111,7 +111,7 @@ fn is_equal(left: Literal, right: Literal) -> bool {
     }
 }
 
-fn unary_number_error(op_token: Token, right: Literal) -> RloxError {
+fn unary_number_error(op_token: &Token, right: Literal) -> RloxError {
     let (line, column) = op_token.get_location();
     let emsg = ErrorMessage::new(
         ErrorType::Runtime,
@@ -126,7 +126,7 @@ fn unary_number_error(op_token: Token, right: Literal) -> RloxError {
     RloxError::new(vec![emsg])
 }
 
-fn binary_number_error(op_token: Token, left: Literal, right: Literal) -> RloxError {
+fn binary_number_error(op_token: &Token, left: Literal, right: Literal) -> RloxError {
     let (line, column) = op_token.get_location();
     let emsg = ErrorMessage::new(
         ErrorType::Runtime,
@@ -142,7 +142,7 @@ fn binary_number_error(op_token: Token, left: Literal, right: Literal) -> RloxEr
     RloxError::new(vec![emsg])
 }
 
-fn plus_error(op_token: Token, left: Literal, right: Literal) -> RloxError {
+fn plus_error(op_token: &Token, left: Literal, right: Literal) -> RloxError {
     let (line, column) = op_token.get_location();
     let emsg = ErrorMessage::new(
         ErrorType::Runtime,
@@ -156,7 +156,7 @@ fn plus_error(op_token: Token, left: Literal, right: Literal) -> RloxError {
     RloxError::new(vec![emsg])
 }
 
-fn invalid_binary_operator(op_token: Token) -> RloxError {
+fn invalid_binary_operator(op_token: &Token) -> RloxError {
     let (line, column) = op_token.get_location();
     let emsg = ErrorMessage::new(
         ErrorType::Runtime,
@@ -167,7 +167,7 @@ fn invalid_binary_operator(op_token: Token) -> RloxError {
     RloxError::new(vec![emsg])
 }
 
-fn invalid_unary_operator(op_token: Token) -> RloxError {
+fn invalid_unary_operator(op_token: &Token) -> RloxError {
     let (line, column) = op_token.get_location();
     let emsg = ErrorMessage::new(
         ErrorType::Runtime,

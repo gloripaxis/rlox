@@ -16,7 +16,7 @@ fn run(source: String) -> Result<(), Box<dyn Error>> {
     let expression = Parser::new(tokens).parse()?;
 
     let interpreter = Interpreter::new();
-    let value = interpreter.execute(expression)?;
+    let value = interpreter.execute(&expression)?;
     println!("{value}");
     Ok(())
 }
