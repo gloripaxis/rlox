@@ -101,7 +101,7 @@ impl Parser {
             TokenType::LeftParen => {
                 self.advance();
                 let expr = self.expression()?;
-                self.consume(TokenType::RightParen)?;
+                self.expect(TokenType::RightParen)?;
                 Expression::Grouping(Box::new(expr))
             }
             _ => {
@@ -120,8 +120,8 @@ impl Parser {
         Ok(expr)
     }
 
-    fn consume(&mut self, tt: TokenType) -> Result<&Token, Box<dyn Error>> {
-        if self.check(tt) {
+    fn expect(&mut self, tt: TokenType) -> Result<&Token, Box<dyn Error>> {
+        if self.is_type(tt) {
             return Ok(self.advance());
         }
         let token = self.peek();
@@ -146,7 +146,7 @@ impl Parser {
 
     fn advance_maybe(&mut self, types: &[TokenType]) -> bool {
         for tt in types {
-            if self.check(*tt) {
+            if self.is_type(*tt) {
                 self.advance();
                 return true;
             }
@@ -154,7 +154,7 @@ impl Parser {
         false
     }
 
-    fn check(&self, ttype: TokenType) -> bool {
+    fn is_type(&self, ttype: TokenType) -> bool {
         if self.is_end() {
             return false;
         }
