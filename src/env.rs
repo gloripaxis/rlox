@@ -13,15 +13,9 @@ pub struct Environment {
 
 impl Environment {
     pub fn new(parent: Option<Rc<RefCell<Environment>>>) -> Self {
-        match parent {
-            None => Self {
-                env: HashMap::new(),
-                parent: None,
-            },
-            Some(env) => Self {
-                env: HashMap::new(),
-                parent: Some(Rc::clone(&env)),
-            },
+        Self {
+            env: HashMap::new(),
+            parent: parent.map(|x| Rc::clone(&x)),
         }
     }
 
