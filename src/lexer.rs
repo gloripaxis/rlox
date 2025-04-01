@@ -1,5 +1,4 @@
-use crate::errors::{ErrorMessage, ErrorType, RloxError};
-use std::error::Error;
+use crate::errors::{ErrorInfo, LoxError};
 use token::{Literal, Token, TokenType};
 
 pub mod token;
@@ -15,7 +14,7 @@ pub struct Lexer<'a> {
     chars: Vec<char>,
     tokens: Vec<Token>,
 
-    errors: Vec<ErrorMessage>,
+    errors: Vec<ErrorInfo>,
 }
 
 impl<'a> Lexer<'a> {
@@ -36,14 +35,14 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    pub fn scan(mut self) -> Result<Vec<Token>, Box<dyn Error>> {
+    pub fn scan(mut self) -> Result<Vec<Token>, LoxError> {
         while !self.is_end() {
             self.start = self.current;
             self.scan_token();
         }
 
         if !self.errors.is_empty() {
-            return Err(self.build_error());
+            return Err(LoxError::Lexer(self.errors));
         }
 
         let eof_token = Token::new(
@@ -105,7 +104,7 @@ impl<'a> Lexer<'a> {
             'A'..='Z' | 'a'..='z' => self.scan_identifier_or_keyword(),
 
             // Unexpected characters
-            _ => self.store_error(format!("Encountered illegal character '{c}'"), None, None),
+            _ => self.store_error(format!("Encountered illegal character '{c}'"), None),
         }
     }
 
@@ -118,12 +117,8 @@ impl<'a> Lexer<'a> {
         self.advance_until('"');
         if self.is_end() {
             // This is a non-recoverable error => early return Err
-            let (true_line, true_col) = self.find_string_start_position(&self.source[self.start..self.current]);
-            self.store_error(
-                String::from("String is never terminated"),
-                Some(true_line),
-                Some(true_col),
-            );
+            let start_position = self.find_string_start_position(&self.source[self.start..self.current]);
+            self.store_error(String::from("String is never terminated"), Some(start_position));
             return;
         }
         self.advance();
@@ -245,17 +240,12 @@ impl<'a> Lexer<'a> {
         self.chars[self.current + 1]
     }
 
-    fn store_error(&mut self, message: String, true_line: Option<usize>, true_col: Option<usize>) {
-        self.errors.push(ErrorMessage::new(
-            ErrorType::Lexer,
-            message,
-            true_line.unwrap_or(self.line),
-            true_col.unwrap_or(self.column - 1),
-        ))
-    }
-
-    fn build_error(&mut self) -> Box<dyn Error> {
-        Box::new(RloxError::new(self.errors.clone()))
+    fn store_error(&mut self, message: String, start_pos: Option<(usize, usize)>) {
+        let einfo = match start_pos {
+            Some((l, c)) => ErrorInfo::with_start((l, c), (self.line, self.column - 1), message.to_string()),
+            _ => ErrorInfo::new((self.line, self.column - 1), message.to_string()),
+        };
+        self.errors.push(einfo);
     }
 
     fn get_keyword_type(&self, value: &str) -> Option<TokenType> {

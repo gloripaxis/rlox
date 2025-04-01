@@ -1,70 +1,87 @@
 use std::error::Error;
 use std::fmt;
 
-#[derive(Debug, Clone)]
-pub enum ErrorType {
-    Lexer,
-    Syntax,
-    Runtime,
-}
+use crate::lexer::token::Token;
 
-impl fmt::Display for ErrorType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}Error", self)
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct ErrorMessage {
-    error_type: ErrorType,
+#[derive(Debug)]
+pub struct ErrorInfo {
     message: String,
-    line: usize,
-    column: usize,
+    start: Option<(usize, usize)>,
+    location: (usize, usize),
 }
 
-impl ErrorMessage {
-    pub fn new(error_type: ErrorType, message: String, line: usize, column: usize) -> Self {
-        Self {
-            error_type,
-            message,
-            line,
-            column,
+impl fmt::Display for ErrorInfo {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.start {
+            Some((line, col)) => write!(
+                f,
+                " between line {}, column {} and line {}, column {}: {}",
+                line, col, self.location.0, self.location.1, self.message
+            ),
+            None => write!(
+                f,
+                " at line {}, column {}: {}",
+                self.location.0, self.location.1, self.message
+            ),
         }
     }
 }
 
-impl fmt::Display for ErrorMessage {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{} at line {}, column {}: {}",
-            self.error_type, self.line, self.column, self.message
-        )
+impl ErrorInfo {
+    pub fn new(location: (usize, usize), message: String) -> Self {
+        Self {
+            message,
+            start: None,
+            location,
+        }
+    }
+
+    pub fn with_start(start: (usize, usize), location: (usize, usize), message: String) -> Self {
+        Self {
+            message,
+            start: Some(start),
+            location,
+        }
+    }
+
+    pub fn from_token(token: &Token, message: String) -> Self {
+        Self {
+            message,
+            start: None,
+            location: token.get_location(),
+        }
     }
 }
 
 #[derive(Debug)]
-pub struct RloxError {
-    messages: Vec<ErrorMessage>,
+pub enum LoxError {
+    Lexer(Vec<ErrorInfo>),
+    Syntax(Vec<ErrorInfo>),
+    Runtime(ErrorInfo),
 }
 
-impl Error for RloxError {}
+impl Error for LoxError {}
 
-impl RloxError {
-    pub fn new(messages: Vec<ErrorMessage>) -> Self {
-        Self { messages }
-    }
-}
-
-impl fmt::Display for RloxError {
+impl fmt::Display for LoxError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let error_message = self
-            .messages
-            .iter()
-            .map(|err| err.to_string())
-            .collect::<Vec<_>>()
-            .join("\n");
-
-        write!(f, "{}", error_message)
+        match self {
+            LoxError::Lexer(errors) => {
+                let emsg = errors
+                    .iter()
+                    .map(|err| format!("Lexer Error{}", err))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                write!(f, "{}", emsg)
+            }
+            LoxError::Syntax(errors) => {
+                let emsg = errors
+                    .iter()
+                    .map(|err| format!("Syntax Error{}", err))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                write!(f, "{}", emsg)
+            }
+            LoxError::Runtime(error) => write!(f, "Runtime Error{}", error),
+        }
     }
 }

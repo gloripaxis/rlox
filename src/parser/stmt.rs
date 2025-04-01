@@ -1,7 +1,5 @@
-use std::error::Error;
-
 use super::expr::Expression;
-use crate::{lexer::token::Token, visitors::Visitor};
+use crate::{errors::LoxError, lexer::token::Token, visitors::Visitor};
 
 #[derive(Debug, Clone)]
 pub enum Statement {
@@ -13,7 +11,7 @@ pub enum Statement {
 }
 
 impl Statement {
-    pub fn accept<T>(&self, visitor: &mut dyn Visitor<T>) -> Result<(), Box<dyn Error>> {
+    pub fn accept<T>(&self, visitor: &mut dyn Visitor<T>) -> Result<(), LoxError> {
         match self {
             Statement::Print(expr) => visitor.visit_print_stmt(expr),
             Statement::Expression(expr) => visitor.visit_expression_stmt(expr),

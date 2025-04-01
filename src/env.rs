@@ -1,7 +1,7 @@
-use std::{cell::RefCell, collections::HashMap, error::Error, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::{
-    errors::{ErrorMessage, ErrorType, RloxError},
+    errors::{ErrorInfo, LoxError},
     lexer::token::{Literal, Token},
 };
 
@@ -29,7 +29,7 @@ impl Environment {
         self.env.insert(name, value);
     }
 
-    pub fn assign(&mut self, name: &Token, value: Literal) -> Result<(), Box<dyn Error>> {
+    pub fn assign(&mut self, name: &Token, value: Literal) -> Result<(), LoxError> {
         if self.env.contains_key(name.get_lexeme()) {
             self.env.insert(String::from(name.get_lexeme()), value);
             return Ok(());
@@ -39,30 +39,20 @@ impl Environment {
             return env.borrow_mut().assign(name, value);
         }
 
-        let (line, column) = name.get_location();
-        Err(Box::new(RloxError::new(vec![ErrorMessage::new(
-            ErrorType::Runtime,
-            format!("Undefined variable '{}'", name.get_lexeme()),
-            line,
-            column,
-        )])))
+        let message = format!("Undefined variable: '{}'", name.get_lexeme());
+        Err(LoxError::Runtime(ErrorInfo::from_token(name, message)))
     }
 
-    pub fn get(&self, token: &Token) -> Result<Literal, Box<dyn Error>> {
-        if self.env.contains_key(token.get_lexeme()) {
-            return Ok(self.env.get(token.get_lexeme()).unwrap().to_owned());
+    pub fn get(&self, name: &Token) -> Result<Literal, LoxError> {
+        if self.env.contains_key(name.get_lexeme()) {
+            return Ok(self.env.get(name.get_lexeme()).unwrap().to_owned());
         }
 
         if let Some(env) = &self.parent {
-            return env.borrow_mut().get(token);
+            return env.borrow_mut().get(name);
         }
 
-        let (line, column) = token.get_location();
-        Err(Box::new(RloxError::new(vec![ErrorMessage::new(
-            ErrorType::Runtime,
-            format!("Undefined variable: '{}'", token.get_lexeme()),
-            line,
-            column,
-        )])))
+        let message = format!("Undefined variable: '{}'", name.get_lexeme());
+        Err(LoxError::Runtime(ErrorInfo::from_token(name, message)))
     }
 }

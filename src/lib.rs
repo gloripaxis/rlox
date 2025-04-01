@@ -2,6 +2,7 @@ use std::error::Error;
 use std::io::Write;
 use std::{fs, io};
 
+use errors::LoxError;
 use lexer::Lexer;
 use parser::Parser;
 use visitors::interpreter::Interpreter;
@@ -12,8 +13,8 @@ mod lexer;
 mod parser;
 mod visitors;
 
-fn run(source: String, interpreter: &mut Interpreter) -> Result<(), Box<dyn Error>> {
-    let tokens = Lexer::new(&source).scan()?;
+fn run(source: &str, interpreter: &mut Interpreter) -> Result<(), LoxError> {
+    let tokens = Lexer::new(source).scan()?;
     let program = Parser::new(tokens).parse()?;
 
     interpreter.interpret(program)?;
@@ -24,7 +25,7 @@ pub fn run_file(fname: String) -> Result<(), Box<dyn Error>> {
     let contents = fs::read_to_string(&fname)?;
 
     let mut interpreter = Interpreter::new();
-    run(contents, &mut interpreter)?;
+    run(&contents, &mut interpreter)?;
     Ok(())
 }
 
@@ -47,7 +48,7 @@ pub fn run_prompt() -> Result<(), Box<dyn Error>> {
                 if source == "\n" {
                     continue;
                 }
-                let result = run(source, &mut interpreter);
+                let result = run(source.trim(), &mut interpreter);
                 if let Err(x) = result {
                     eprintln!("{x}");
                 }

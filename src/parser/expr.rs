@@ -1,6 +1,6 @@
-use std::error::Error;
+use std::fmt;
 
-use crate::{lexer::token::Token, visitors::Visitor};
+use crate::{errors::LoxError, lexer::token::Token, visitors::Visitor};
 
 #[derive(Debug, Clone)]
 pub enum Expression {
@@ -14,7 +14,7 @@ pub enum Expression {
 }
 
 impl Expression {
-    pub fn accept<T>(&self, visitor: &mut dyn Visitor<T>) -> Result<T, Box<dyn Error>> {
+    pub fn accept<T>(&self, visitor: &mut dyn Visitor<T>) -> Result<T, LoxError> {
         match self {
             Expression::Literal(token) => visitor.visit_literal_expr(token),
             Expression::Binary(left, token, right) => visitor.visit_binary_expr(left, token, right),
@@ -23,6 +23,20 @@ impl Expression {
             Expression::Variable(token) => visitor.visit_variable_expr(token),
             Expression::Assign(token, value) => visitor.visit_assign_expr(token, value),
             Expression::Logical(left, token, right) => visitor.visit_logic_expr(left, token, right),
+        }
+    }
+}
+
+impl fmt::Display for Expression {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Expression::Logical(_, tok, _) => write!(f, "LogicalExpression({})", tok.get_lexeme()),
+            Expression::Binary(_, tok, _) => write!(f, "BinaryExpression({})", tok.get_lexeme()),
+            Expression::Unary(tok, _) => write!(f, "UnaryExpression({})", tok.get_lexeme()),
+            Expression::Grouping(ex) => write!(f, "GroupingExpression({})", ex),
+            Expression::Literal(tok) => write!(f, "LiteralExpression({})", tok.get_literal()),
+            Expression::Variable(tok) => write!(f, "VariableExpression({})", tok.get_lexeme()),
+            Expression::Assign(tok, _) => write!(f, "AssignmentExpression({})", tok.get_lexeme()),
         }
     }
 }
