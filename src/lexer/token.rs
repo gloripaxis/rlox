@@ -40,15 +40,10 @@ impl PartialEq<Literal> for Literal {
     fn eq(&self, other: &Literal) -> bool {
         match (self, other) {
             (Literal::Nil, Literal::Nil) => true,
-            (Literal::Nil, _) => false,
-            (_, Literal::Nil) => false,
             (Literal::String(x), Literal::String(y)) => x == y,
-            (Literal::String(_), _) => false,
-            (_, Literal::String(_)) => false,
             (Literal::Number(x), Literal::Number(y)) => x == y,
-            (Literal::Number(_), _) => false,
-            (_, Literal::Number(_)) => false,
             (Literal::Boolean(x), Literal::Boolean(y)) => x == y,
+            _ => false,
         }
     }
 }
