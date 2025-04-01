@@ -21,7 +21,7 @@ impl Visitor<Literal> for Interpreter {
                 Literal::Number(x) => Ok(Literal::Number(-x)),
                 _ => Err(Box::new(unary_number_error(op, right_val))),
             },
-            TokenType::Bang => Ok(Literal::Boolean(!is_truthy(&right_val))),
+            TokenType::Bang => Ok(Literal::Boolean(right_val.is_truthy())),
             _ => Err(Box::new(invalid_unary_operator(op))),
         }
     }
@@ -69,8 +69,8 @@ impl Visitor<Literal> for Interpreter {
                 (Literal::Number(l), Literal::Number(r)) => Ok(Literal::Boolean(l <= r)),
                 _ => Err(Box::new(binary_number_error(op, left_lit, right_lit))),
             },
-            TokenType::Eq => Ok(Literal::Boolean(is_equal(left_lit, right_lit))),
-            TokenType::Neq => Ok(Literal::Boolean(!is_equal(left_lit, right_lit))),
+            TokenType::Eq => Ok(Literal::Boolean(left_lit == right_lit)),
+            TokenType::Neq => Ok(Literal::Boolean(left_lit != right_lit)),
             _ => Err(Box::new(invalid_binary_operator(op))),
         }
     }
@@ -85,13 +85,13 @@ impl Visitor<Literal> for Interpreter {
 
         // NOTE: Original implementation returned the literal value of the operand, not strictly true or false
         // I find that disgusting and so decided to strictly return true or false :)
-        let truthy = is_truthy(&left_val);
+        let truthy = left_val.is_truthy();
         match op.get_type() {
             TokenType::Or if truthy => Ok(Literal::Boolean(true)),
             TokenType::And if !truthy => Ok(Literal::Boolean(false)),
             _ => {
                 let val = right.accept(self)?;
-                Ok(Literal::Boolean(is_truthy(&val)))
+                Ok(Literal::Boolean(val.is_truthy()))
             }
         }
     }
@@ -160,7 +160,7 @@ impl Visitor<Literal> for Interpreter {
         b_else: &Option<Box<Statement>>,
     ) -> Result<(), Box<dyn Error>> {
         let value = cond.accept(self)?;
-        match is_truthy(&value) {
+        match value.is_truthy() {
             true => b_then.accept(self)?,
             false => {
                 if let Some(else_stmt) = b_else {
@@ -184,29 +184,6 @@ impl Interpreter {
             stmt.accept(self)?;
         }
         Ok(())
-    }
-}
-
-fn is_truthy(literal: &Literal) -> bool {
-    match literal {
-        Literal::Nil => false,
-        Literal::Boolean(x) => *x,
-        _ => true,
-    }
-}
-
-fn is_equal(left: Literal, right: Literal) -> bool {
-    match (left, right) {
-        (Literal::Nil, Literal::Nil) => true,
-        (Literal::Nil, _) => false,
-        (_, Literal::Nil) => false,
-        (Literal::String(x), Literal::String(y)) => x == y,
-        (Literal::String(_), _) => false,
-        (_, Literal::String(_)) => false,
-        (Literal::Number(x), Literal::Number(y)) => x == y,
-        (Literal::Number(_), _) => false,
-        (_, Literal::Number(_)) => false,
-        (Literal::Boolean(x), Literal::Boolean(y)) => x == y,
     }
 }
 

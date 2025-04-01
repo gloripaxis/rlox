@@ -38,6 +38,33 @@ impl fmt::Display for Literal {
     }
 }
 
+impl PartialEq<Literal> for Literal {
+    fn eq(&self, other: &Literal) -> bool {
+        match (self, other) {
+            (Literal::Nil, Literal::Nil) => true,
+            (Literal::Nil, _) => false,
+            (_, Literal::Nil) => false,
+            (Literal::String(x), Literal::String(y)) => x == y,
+            (Literal::String(_), _) => false,
+            (_, Literal::String(_)) => false,
+            (Literal::Number(x), Literal::Number(y)) => x == y,
+            (Literal::Number(_), _) => false,
+            (_, Literal::Number(_)) => false,
+            (Literal::Boolean(x), Literal::Boolean(y)) => x == y,
+        }
+    }
+}
+
+impl Literal {
+    pub fn is_truthy(&self) -> bool {
+        match self {
+            Literal::Nil => false,
+            Literal::Boolean(x) => *x,
+            _ => true,
+        }
+    }
+}
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum TokenType {
     // Single-symbol tokens
