@@ -80,13 +80,10 @@ impl<'a> Lexer<'a> {
             '>' => self.scan_either('=', TokenType::Geq, TokenType::Gt),
 
             // Division or Comments
-            '/' => {
-                if self.advance_maybe('/') {
-                    self.advance_until('\n');
-                } else {
-                    self.add_token(TokenType::Slash, None);
-                }
-            }
+            '/' => match self.advance_maybe('/') {
+                true => self.advance_until('\n'),
+                false => self.add_token(TokenType::Slash, None),
+            },
             // Regular whitespace
             ' ' | '\r' | '\t' => {}
 
@@ -97,7 +94,7 @@ impl<'a> Lexer<'a> {
             }
 
             // Strings
-            '"' => self.scan_string(), // ? required because scan_string can throw an unrecoverable error
+            '"' => self.scan_string(),
 
             // Numbers
             '0'..='9' => self.scan_number(),
@@ -118,7 +115,7 @@ impl<'a> Lexer<'a> {
     fn scan_string(&mut self) {
         self.advance_until('"');
         if self.is_end() {
-            // This is a non-recoverable error => early return Err
+            // This is a non-recoverable error => early return
             let start_position = self.find_string_start_position(&self.source[self.start..self.current]);
             self.store_error(String::from("String is never terminated"), Some(start_position));
             return;
