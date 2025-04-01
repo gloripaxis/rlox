@@ -62,22 +62,10 @@ impl<'a> Lexer<'a> {
         let c: char = self.advance();
         match c {
             // Unambiguous single-symbol tokens
-            '(' => self.add_token(TokenType::LeftParen, None),
-            ')' => self.add_token(TokenType::RightParen, None),
-            '{' => self.add_token(TokenType::LeftBrace, None),
-            '}' => self.add_token(TokenType::RightBrace, None),
-            ',' => self.add_token(TokenType::Comma, None),
-            '.' => self.add_token(TokenType::Dot, None),
-            '-' => self.add_token(TokenType::Minus, None),
-            '+' => self.add_token(TokenType::Plus, None),
-            ';' => self.add_token(TokenType::Semicolon, None),
-            '*' => self.add_token(TokenType::Star, None),
+            '(' | ')' | '{' | '}' | ',' | '.' | '-' | '+' | ';' | '*' => self.add_token(TokenType::from_char(c), None),
 
             // Ambiguous single-, double-, or multi-symbol tokens
-            '!' => self.scan_either('=', TokenType::Neq, TokenType::Bang),
-            '=' => self.scan_either('=', TokenType::Eq, TokenType::Assign),
-            '<' => self.scan_either('=', TokenType::Leq, TokenType::Lt),
-            '>' => self.scan_either('=', TokenType::Geq, TokenType::Gt),
+            '!' | '=' | '<' | '>' => self.scan_either('=', TokenType::from_pre_eq_char(c), TokenType::from_char(c)),
 
             // Division or Comments
             '/' => match self.advance_maybe('/') {
@@ -145,7 +133,7 @@ impl<'a> Lexer<'a> {
         }
 
         let value = &self.source[self.start..self.current];
-        let ttype = self.get_keyword_type(value).unwrap_or(TokenType::Identifier);
+        let ttype = TokenType::get_keyword_type(value).unwrap_or(TokenType::Identifier);
         self.add_token(ttype, Some(String::from(value)));
     }
 
@@ -243,27 +231,5 @@ impl<'a> Lexer<'a> {
             _ => ErrorInfo::new((self.line, self.column - 1), message.to_string()),
         };
         self.errors.push(einfo);
-    }
-
-    fn get_keyword_type(&self, value: &str) -> Option<TokenType> {
-        match value {
-            "and" => Some(TokenType::And),
-            "class" => Some(TokenType::Class),
-            "else" => Some(TokenType::Else),
-            "false" => Some(TokenType::False),
-            "for" => Some(TokenType::For),
-            "fun" => Some(TokenType::Fun),
-            "if" => Some(TokenType::If),
-            "nil" => Some(TokenType::Nil),
-            "or" => Some(TokenType::Or),
-            "print" => Some(TokenType::Print),
-            "return" => Some(TokenType::Return),
-            "super" => Some(TokenType::Super),
-            "this" => Some(TokenType::This),
-            "true" => Some(TokenType::True),
-            "var" => Some(TokenType::Var),
-            "while" => Some(TokenType::While),
-            _ => None,
-        }
     }
 }
