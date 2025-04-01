@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use crate::errors::{ErrorInfo, LoxError};
 use token::{Literal, Token, TokenType};
 
@@ -47,7 +49,7 @@ impl<'a> Lexer<'a> {
 
         let eof_token = Token::new(
             TokenType::EndOfFile,
-            String::from("\0"),
+            Rc::from("\0"),
             Literal::Nil,
             self.line,
             self.column,
@@ -172,25 +174,23 @@ impl<'a> Lexer<'a> {
 
     fn add_token(&mut self, ttype: TokenType, value: Option<String>) {
         let true_value = value.unwrap_or(String::from(&self.source[self.start..self.current]));
+        let (true_line, true_start) = match ttype {
+            TokenType::String => self.find_string_start_position(&true_value),
+            _ => (self.line, self.column - 1),
+        };
+
+        let rc_value: Rc<str> = Rc::from(true_value);
+
         let literal = match ttype {
-            TokenType::String => Literal::String(true_value.to_string()),
-            TokenType::Number => Literal::Number(true_value.parse().unwrap()),
+            TokenType::String => Literal::String(Rc::clone(&rc_value)),
+            TokenType::Number => Literal::Number(Rc::clone(&rc_value).parse().unwrap()),
             TokenType::True => Literal::Boolean(true),
             TokenType::False => Literal::Boolean(false),
             _ => Literal::Nil,
         };
 
-        let (true_line, true_start) = match ttype {
-            TokenType::String => self.find_string_start_position(&true_value),
-            _ => (self.line, self.column - 1),
-        };
-        self.tokens.push(Token::new(
-            ttype,
-            true_value.to_string(),
-            literal,
-            true_line,
-            true_start,
-        ))
+        self.tokens
+            .push(Token::new(ttype, rc_value, literal, true_line, true_start))
     }
 
     fn is_end(&self) -> bool {

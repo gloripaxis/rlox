@@ -37,7 +37,7 @@ impl Visitor<Literal> for Interpreter {
             },
             TokenType::Plus => match (&left_lit, &right_lit) {
                 (Literal::Number(l), Literal::Number(r)) => Ok(Literal::Number(l + r)),
-                (Literal::String(l), Literal::String(r)) => Ok(Literal::String(format!("{l}{r}"))),
+                (Literal::String(l), Literal::String(r)) => Ok(Literal::String(Rc::from(format!("{l}{r}")))),
                 _ => Err(LoxError::Runtime(plus_error(op, left_lit, right_lit))),
             },
             TokenType::Slash => match (&left_lit, &right_lit) {

@@ -1,10 +1,10 @@
-use std::fmt;
+use std::{fmt, rc::Rc};
 
 #[derive(Clone)]
 pub enum Literal {
     Nil,
     Number(f64),
-    String(String),
+    String(Rc<str>),
     Boolean(bool),
 }
 
@@ -124,7 +124,7 @@ impl fmt::Display for TokenType {
 #[derive(Debug, Clone)]
 pub struct Token {
     ttype: TokenType,
-    lexeme: String,
+    lexeme: Rc<str>,
     literal: Literal,
     line: usize,
     column: usize,
@@ -141,7 +141,7 @@ impl fmt::Display for Token {
 }
 
 impl Token {
-    pub fn new(ttype: TokenType, lexeme: String, literal: Literal, line: usize, column: usize) -> Self {
+    pub fn new(ttype: TokenType, lexeme: Rc<str>, literal: Literal, line: usize, column: usize) -> Self {
         Self {
             ttype,
             lexeme,
