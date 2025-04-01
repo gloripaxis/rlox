@@ -7,8 +7,169 @@ use crate::{
     parser::{expr::Expression, stmt::Statement},
 };
 
+use super::Visitor;
+
 pub struct Interpreter {
     env_stack: Vec<Rc<RefCell<Environment>>>,
+}
+
+impl Visitor<Literal> for Interpreter {
+    fn visit_unary_expr(&mut self, op: &Token, right: &Expression) -> Result<Literal, Box<dyn Error>> {
+        let right_val = right.accept(self)?;
+        match op.get_type() {
+            TokenType::Minus => match right_val {
+                Literal::Number(x) => Ok(Literal::Number(-x)),
+                _ => Err(Box::new(unary_number_error(op, right_val))),
+            },
+            TokenType::Bang => Ok(Literal::Boolean(!is_truthy(&right_val))),
+            _ => Err(Box::new(invalid_unary_operator(op))),
+        }
+    }
+
+    fn visit_binary_expr(
+        &mut self,
+        left: &Expression,
+        op: &Token,
+        right: &Expression,
+    ) -> Result<Literal, Box<dyn Error>> {
+        let left_lit = left.accept(self)?;
+        let right_lit = right.accept(self)?;
+
+        match op.get_type() {
+            TokenType::Minus => match (&left_lit, &right_lit) {
+                (Literal::Number(l), Literal::Number(r)) => Ok(Literal::Number(l - r)),
+                _ => Err(Box::new(binary_number_error(op, left_lit, right_lit))),
+            },
+            TokenType::Plus => match (&left_lit, &right_lit) {
+                (Literal::Number(l), Literal::Number(r)) => Ok(Literal::Number(l + r)),
+                (Literal::String(l), Literal::String(r)) => Ok(Literal::String(format!("{l}{r}"))),
+                _ => Err(Box::new(plus_error(op, left_lit, right_lit))),
+            },
+            TokenType::Slash => match (&left_lit, &right_lit) {
+                (Literal::Number(l), Literal::Number(r)) => Ok(Literal::Number(l / r)),
+                _ => Err(Box::new(binary_number_error(op, left_lit, right_lit))),
+            },
+            TokenType::Star => match (&left_lit, &right_lit) {
+                (Literal::Number(l), Literal::Number(r)) => Ok(Literal::Number(l * r)),
+                _ => Err(Box::new(binary_number_error(op, left_lit, right_lit))),
+            },
+            TokenType::Gt => match (&left_lit, &right_lit) {
+                (Literal::Number(l), Literal::Number(r)) => Ok(Literal::Boolean(l > r)),
+                _ => Err(Box::new(binary_number_error(op, left_lit, right_lit))),
+            },
+            TokenType::Geq => match (&left_lit, &right_lit) {
+                (Literal::Number(l), Literal::Number(r)) => Ok(Literal::Boolean(l >= r)),
+                _ => Err(Box::new(binary_number_error(op, left_lit, right_lit))),
+            },
+            TokenType::Lt => match (&left_lit, &right_lit) {
+                (Literal::Number(l), Literal::Number(r)) => Ok(Literal::Boolean(l < r)),
+                _ => Err(Box::new(binary_number_error(op, left_lit, right_lit))),
+            },
+            TokenType::Leq => match (&left_lit, &right_lit) {
+                (Literal::Number(l), Literal::Number(r)) => Ok(Literal::Boolean(l <= r)),
+                _ => Err(Box::new(binary_number_error(op, left_lit, right_lit))),
+            },
+            TokenType::Eq => Ok(Literal::Boolean(is_equal(left_lit, right_lit))),
+            TokenType::Neq => Ok(Literal::Boolean(!is_equal(left_lit, right_lit))),
+            _ => Err(Box::new(invalid_binary_operator(op))),
+        }
+    }
+
+    fn visit_logic_expr(
+        &mut self,
+        left: &Expression,
+        op: &Token,
+        right: &Expression,
+    ) -> Result<Literal, Box<dyn Error>> {
+        let left_val = left.accept(self)?;
+
+        // NOTE: Original implementation returned the literal value of the operand, not strictly true or false
+        // I find that disgusting and so decided to strictly return true or false :)
+        let truthy = is_truthy(&left_val);
+        match op.get_type() {
+            TokenType::Or if truthy => Ok(Literal::Boolean(true)),
+            TokenType::And if !truthy => Ok(Literal::Boolean(false)),
+            _ => {
+                let val = right.accept(self)?;
+                Ok(Literal::Boolean(is_truthy(&val)))
+            }
+        }
+    }
+
+    fn visit_grouping_expr(&mut self, expr: &Expression) -> Result<Literal, Box<dyn Error>> {
+        expr.accept(self)
+    }
+
+    fn visit_literal_expr(&mut self, value: &Token) -> Result<Literal, Box<dyn Error>> {
+        Ok(value.get_literal())
+    }
+
+    fn visit_variable_expr(&mut self, name: &Token) -> Result<Literal, Box<dyn Error>> {
+        self.env_stack.last().unwrap().borrow().get(name)
+    }
+
+    fn visit_assign_expr(&mut self, name: &Token, right: &Expression) -> Result<Literal, Box<dyn Error>> {
+        let lit = right.accept(self)?;
+        self.env_stack.last().unwrap().borrow_mut().assign(name, lit.clone())?;
+        Ok(lit)
+    }
+
+    fn visit_expression_stmt(&mut self, expr: &Expression) -> Result<(), Box<dyn Error>> {
+        expr.accept(self)?;
+        Ok(())
+    }
+
+    fn visit_print_stmt(&mut self, expr: &Expression) -> Result<(), Box<dyn Error>> {
+        let lit = expr.accept(self)?;
+        println!("{lit}");
+        Ok(())
+    }
+
+    fn visit_var_stmt(&mut self, name: &Token, init: &Option<Expression>) -> Result<(), Box<dyn Error>> {
+        let value = match init {
+            Some(expr) => expr.accept(self)?,
+            None => Literal::Nil,
+        };
+        self.env_stack
+            .last()
+            .unwrap()
+            .borrow_mut()
+            .define(String::from(name.get_lexeme()), value);
+        Ok(())
+    }
+
+    fn visit_block_stmt(&mut self, statements: &[Statement]) -> Result<(), Box<dyn Error>> {
+        let new_env = Environment::new(Some(Rc::clone(self.env_stack.last().unwrap())));
+        self.env_stack.push(Rc::new(RefCell::new(new_env)));
+
+        for stmt in statements.iter() {
+            let result = stmt.accept(self);
+            if let Err(x) = result {
+                self.env_stack.pop();
+                return Err(x);
+            }
+        }
+        self.env_stack.pop();
+        Ok(())
+    }
+
+    fn visit_if_stmt(
+        &mut self,
+        cond: &Expression,
+        b_then: &Statement,
+        b_else: &Option<Box<Statement>>,
+    ) -> Result<(), Box<dyn Error>> {
+        let value = cond.accept(self)?;
+        match is_truthy(&value) {
+            true => b_then.accept(self)?,
+            false => {
+                if let Some(else_stmt) = b_else {
+                    else_stmt.accept(self)?;
+                }
+            }
+        };
+        Ok(())
+    }
 }
 
 impl Interpreter {
@@ -20,151 +181,9 @@ impl Interpreter {
 
     pub fn interpret(&mut self, program: Vec<Statement>) -> Result<(), Box<dyn Error>> {
         for stmt in program.iter() {
-            self.execute(stmt)?;
+            stmt.accept(self)?;
         }
         Ok(())
-    }
-
-    fn execute(&mut self, stmt: &Statement) -> Result<(), Box<dyn Error>> {
-        match stmt {
-            Statement::Print(expr) => {
-                let lit = self.evaluate(expr)?;
-                println!("{lit}");
-            }
-            Statement::Expression(expr) => {
-                self.evaluate(expr)?;
-            }
-            Statement::Var(token, initializer) => {
-                let value = match initializer {
-                    Some(x) => self.evaluate(x)?,
-                    None => Literal::Nil,
-                };
-                self.env_stack
-                    .last()
-                    .unwrap()
-                    .borrow_mut()
-                    .define(String::from(token.get_lexeme()), value);
-            }
-            Statement::Block(stmts) => {
-                let new_env = Environment::new(Some(Rc::clone(self.env_stack.last().unwrap())));
-                self.env_stack.push(Rc::new(RefCell::new(new_env)));
-
-                for stmt in stmts.iter() {
-                    let result = self.execute(stmt);
-                    if let Err(x) = result {
-                        self.env_stack.pop();
-                        return Err(x);
-                    }
-                }
-                self.env_stack.pop();
-            }
-            Statement::If(cond, br_then, br_else) => {
-                let value = self.evaluate(cond)?;
-                match is_truthy(&value) {
-                    true => self.execute(br_then)?,
-                    false => {
-                        if let Some(else_stmt) = br_else {
-                            self.execute(else_stmt)?;
-                        }
-                    }
-                };
-            }
-        }
-        Ok(())
-    }
-
-    fn evaluate(&mut self, expr: &Expression) -> Result<Literal, Box<dyn Error>> {
-        match expr {
-            Expression::Literal(token) => self.eval_literal(token.get_literal()),
-            Expression::Binary(left, token, right) => self.eval_binary(left, token, right),
-            Expression::Grouping(expr) => self.evaluate(expr),
-            Expression::Unary(token, right) => self.eval_unary(token, right),
-            Expression::Variable(token) => self.env_stack.last().unwrap().borrow().get(token),
-            Expression::Assign(token, value) => self.eval_assign(token, value),
-            Expression::Logical(left, token, right) => self.eval_logic(left, token, right),
-        }
-    }
-
-    fn eval_literal(&self, literal: Literal) -> Result<Literal, Box<dyn Error>> {
-        Ok(literal)
-    }
-
-    fn eval_binary(&mut self, left: &Expression, token: &Token, right: &Expression) -> Result<Literal, Box<dyn Error>> {
-        let left_lit = self.evaluate(left)?;
-        let right_lit = self.evaluate(right)?;
-
-        match token.get_type() {
-            TokenType::Minus => match (&left_lit, &right_lit) {
-                (Literal::Number(l), Literal::Number(r)) => Ok(Literal::Number(l - r)),
-                _ => Err(Box::new(binary_number_error(token, left_lit, right_lit))),
-            },
-            TokenType::Plus => match (&left_lit, &right_lit) {
-                (Literal::Number(l), Literal::Number(r)) => Ok(Literal::Number(l + r)),
-                (Literal::String(l), Literal::String(r)) => Ok(Literal::String(format!("{l}{r}"))),
-                _ => Err(Box::new(plus_error(token, left_lit, right_lit))),
-            },
-            TokenType::Slash => match (&left_lit, &right_lit) {
-                (Literal::Number(l), Literal::Number(r)) => Ok(Literal::Number(l / r)),
-                _ => Err(Box::new(binary_number_error(token, left_lit, right_lit))),
-            },
-            TokenType::Star => match (&left_lit, &right_lit) {
-                (Literal::Number(l), Literal::Number(r)) => Ok(Literal::Number(l * r)),
-                _ => Err(Box::new(binary_number_error(token, left_lit, right_lit))),
-            },
-            TokenType::Gt => match (&left_lit, &right_lit) {
-                (Literal::Number(l), Literal::Number(r)) => Ok(Literal::Boolean(l > r)),
-                _ => Err(Box::new(binary_number_error(token, left_lit, right_lit))),
-            },
-            TokenType::Geq => match (&left_lit, &right_lit) {
-                (Literal::Number(l), Literal::Number(r)) => Ok(Literal::Boolean(l >= r)),
-                _ => Err(Box::new(binary_number_error(token, left_lit, right_lit))),
-            },
-            TokenType::Lt => match (&left_lit, &right_lit) {
-                (Literal::Number(l), Literal::Number(r)) => Ok(Literal::Boolean(l < r)),
-                _ => Err(Box::new(binary_number_error(token, left_lit, right_lit))),
-            },
-            TokenType::Leq => match (&left_lit, &right_lit) {
-                (Literal::Number(l), Literal::Number(r)) => Ok(Literal::Boolean(l <= r)),
-                _ => Err(Box::new(binary_number_error(token, left_lit, right_lit))),
-            },
-            TokenType::Eq => Ok(Literal::Boolean(is_equal(left_lit, right_lit))),
-            TokenType::Neq => Ok(Literal::Boolean(!is_equal(left_lit, right_lit))),
-            _ => Err(Box::new(invalid_binary_operator(token))),
-        }
-    }
-
-    fn eval_unary(&mut self, token: &Token, right_expr: &Expression) -> Result<Literal, Box<dyn Error>> {
-        let right = self.evaluate(right_expr)?;
-        match token.get_type() {
-            TokenType::Minus => match right {
-                Literal::Number(x) => Ok(Literal::Number(-x)),
-                _ => Err(Box::new(unary_number_error(token, right))),
-            },
-            TokenType::Bang => Ok(Literal::Boolean(!is_truthy(&right))),
-            _ => Err(Box::new(invalid_unary_operator(token))),
-        }
-    }
-
-    fn eval_assign(&mut self, token: &Token, value: &Expression) -> Result<Literal, Box<dyn Error>> {
-        let lit = self.evaluate(value)?;
-        self.env_stack.last().unwrap().borrow_mut().assign(token, lit.clone())?;
-        Ok(lit)
-    }
-
-    fn eval_logic(&mut self, left: &Expression, token: &Token, right: &Expression) -> Result<Literal, Box<dyn Error>> {
-        let left_val = self.evaluate(left)?;
-
-        // NOTE: Original implementation returned the literal value of the operand, not strictly true or false
-        // I find that disgusting and so decided to strictly return true or false :)
-        let truthy = is_truthy(&left_val);
-        match token.get_type() {
-            TokenType::Or if truthy => Ok(Literal::Boolean(true)),
-            TokenType::And if !truthy => Ok(Literal::Boolean(false)),
-            _ => {
-                let val = self.evaluate(right)?;
-                Ok(Literal::Boolean(is_truthy(&val)))
-            }
-        }
     }
 }
 
