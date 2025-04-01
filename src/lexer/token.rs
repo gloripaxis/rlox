@@ -10,31 +10,29 @@ pub enum Literal {
 
 impl fmt::Debug for Literal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = match self {
-            Literal::Nil => String::from("nil"),
-            Literal::Number(x) => format!("number ({x})"),
-            Literal::String(x) => format!("string \"{x}\""),
-            Literal::Boolean(x) => format!("boolean ({x})"),
-        };
-        write!(f, "{s}")
+        match self {
+            Literal::Nil => write!(f, "nil"),
+            Literal::Number(x) => write!(f, "number ({})", x),
+            Literal::String(x) => write!(f, "string \"{}\"", x),
+            Literal::Boolean(x) => write!(f, "boolean ({})", x),
+        }
     }
 }
 
 impl fmt::Display for Literal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = match self {
-            Literal::Nil => String::from("nil"),
+        match self {
+            Literal::Nil => write!(f, "nil"),
             Literal::Number(x) => {
                 if x.fract().abs() < f64::EPSILON {
-                    format!("{x:.0}")
+                    write!(f, "{:.0}", x)
                 } else {
-                    format!("{x}")
+                    write!(f, "{}", x)
                 }
             }
-            Literal::String(x) => format!("\"{x}\""),
-            Literal::Boolean(x) => format!("{x}"),
-        };
-        write!(f, "{s}")
+            Literal::String(x) => write!(f, "\"{}\"", x),
+            Literal::Boolean(x) => write!(f, "{}", x),
+        }
     }
 }
 
