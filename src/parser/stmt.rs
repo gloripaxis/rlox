@@ -8,6 +8,7 @@ pub enum Statement {
     Var(Token, Option<Expression>),
     Block(Vec<Statement>),
     If(Expression, Box<Statement>, Option<Box<Statement>>),
+    While(Expression, Box<Statement>),
 }
 
 impl Statement {
@@ -18,6 +19,7 @@ impl Statement {
             Statement::Var(token, initializer) => visitor.visit_var_stmt(token, initializer),
             Statement::Block(stmts) => visitor.visit_block_stmt(stmts),
             Statement::If(cond, br_then, br_else) => visitor.visit_if_stmt(cond, br_then, br_else),
+            Statement::While(cond, stmt) => visitor.visit_while_stmt(cond, stmt),
         }
     }
 }

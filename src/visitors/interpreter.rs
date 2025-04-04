@@ -14,6 +14,7 @@ pub struct Interpreter {
 }
 
 impl Visitor<Literal> for Interpreter {
+    // --------------------- EXPRESSIONS ---------------------
     fn visit_unary_expr(&mut self, op: &Token, right: &Expression) -> Result<Literal, LoxError> {
         let right_val = right.accept(self)?;
         match op.get_type() {
@@ -104,6 +105,7 @@ impl Visitor<Literal> for Interpreter {
         Ok(lit)
     }
 
+    // --------------------- STATEMENTS ---------------------
     fn visit_expression_stmt(&mut self, expr: &Expression) -> Result<(), LoxError> {
         expr.accept(self)?;
         Ok(())
@@ -158,6 +160,13 @@ impl Visitor<Literal> for Interpreter {
                 }
             }
         };
+        Ok(())
+    }
+
+    fn visit_while_stmt(&mut self, cond: &Expression, stmt: &Statement) -> Result<(), LoxError> {
+        while cond.accept(self)?.is_truthy() {
+            stmt.accept(self)?;
+        }
         Ok(())
     }
 }

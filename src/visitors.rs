@@ -26,4 +26,5 @@ pub trait Visitor<T> {
         b_then: &Statement,
         b_else: &Option<Box<Statement>>,
     ) -> Result<(), LoxError>;
+    fn visit_while_stmt(&mut self, cond: &Expression, stmt: &Statement) -> Result<(), LoxError>;
 }

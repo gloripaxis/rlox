@@ -77,6 +77,9 @@ impl Parser {
         if self.advance_maybe(&[TokenType::If]) {
             return self.if_stmt();
         }
+        if self.advance_maybe(&[TokenType::While]) {
+            return self.while_stmt();
+        }
         self.expr_stmt()
     }
 
@@ -111,6 +114,14 @@ impl Parser {
         };
 
         Ok(Statement::If(condition, Box::new(then_branch), else_branch))
+    }
+
+    fn while_stmt(&mut self) -> Result<Statement, ErrorInfo> {
+        self.expect(TokenType::LeftParen, "Expect '(' after 'while'")?;
+        let condition = self.expression()?;
+        self.expect(TokenType::RightParen, "Expect ')' after 'while' condition")?;
+        let stmts = self.statement()?;
+        Ok(Statement::While(condition, Box::new(stmts)))
     }
 
     fn expr_stmt(&mut self) -> Result<Statement, ErrorInfo> {
