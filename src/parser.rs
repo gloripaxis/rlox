@@ -1,9 +1,11 @@
+use std::rc::Rc;
+
 use expr::Expression;
 use stmt::Statement;
 
 use crate::{
     errors::{ErrorInfo, LoxError},
-    lexer::token::{Token, TokenType},
+    lexer::token::{Literal, Token, TokenType},
 };
 
 pub mod expr;
@@ -80,6 +82,9 @@ impl Parser {
         if self.advance_maybe(&[TokenType::While]) {
             return self.while_stmt();
         }
+        if self.advance_maybe(&[TokenType::For]) {
+            return self.for_stmt();
+        }
         self.expr_stmt()
     }
 
@@ -122,6 +127,65 @@ impl Parser {
         self.expect(TokenType::RightParen, "Expect ')' after 'while' condition")?;
         let stmts = self.statement()?;
         Ok(Statement::While(condition, Box::new(stmts)))
+    }
+
+    fn for_stmt(&mut self) -> Result<Statement, ErrorInfo> {
+        self.expect(TokenType::LeftParen, "Expected '(' after 'for'")?;
+
+        // Parse initializer
+        let orig_init: Option<Statement>;
+        if self.advance_maybe(&[TokenType::Semicolon]) {
+            orig_init = None;
+        } else if self.advance_maybe(&[TokenType::Var]) {
+            orig_init = Some(self.var_decl()?);
+        } else {
+            orig_init = Some(self.expr_stmt()?);
+        }
+
+        // Parse condition
+        let orig_cond = match self.is_type(TokenType::Semicolon) {
+            true => None,
+            false => Some(self.expression()?),
+        };
+        self.expect(TokenType::Semicolon, "Expected ';' after loop condition")?;
+
+        // Parse increment
+        let orig_inc = match self.is_type(TokenType::RightParen) {
+            true => None,
+            false => Some(self.expression()?),
+        };
+        self.expect(TokenType::RightParen, "Expect ')' after for clauses")?;
+
+        // Parse statement
+        let orig_body = self.statement()?;
+
+        // if it exists, add the increment to the end of the while-body
+        let body = match orig_inc {
+            None => orig_body,
+            Some(inc) => Statement::Block(vec![orig_body, Statement::Expression(inc)]),
+        };
+
+        // if not explicitly provided, set the condition to perma-true
+        let cond = match orig_cond {
+            Some(expr) => expr,
+            None => {
+                let fake_token = Token::new(
+                    TokenType::True,
+                    Rc::from(String::from(";")),
+                    Literal::Boolean(true),
+                    self.peek().get_location().0,
+                    self.peek().get_location().1,
+                );
+                Expression::Literal(fake_token)
+            }
+        };
+
+        // if it exists, add the initializer before the while-body
+        let result = match orig_init {
+            None => Statement::While(cond, Box::new(body)),
+            Some(init) => Statement::Block(vec![init, Statement::While(cond, Box::new(body))]),
+        };
+        Ok(result)
     }
 
     fn expr_stmt(&mut self) -> Result<Statement, ErrorInfo> {
