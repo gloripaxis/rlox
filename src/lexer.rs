@@ -11,6 +11,8 @@ pub struct Lexer<'a> {
     line: usize,
     column: usize,
 
+    str_start_pos: Option<(usize, usize)>,
+
     source: &'a str,
     srclen: usize,
     chars: Vec<char>,
@@ -34,6 +36,7 @@ impl<'a> Lexer<'a> {
             srclen,
             tokens: Vec::new(),
             errors: Vec::new(),
+            str_start_pos: None,
         }
     }
 
@@ -69,7 +72,7 @@ impl<'a> Lexer<'a> {
 
             // Division or Comments
             '/' => match self.advance_maybe('/') {
-                true => self.advance_until('\n'),
+                true => self.advance_line(),
                 false => self.add_token(TokenType::Slash, None),
             },
             // Regular whitespace
@@ -101,16 +104,16 @@ impl<'a> Lexer<'a> {
     }
 
     fn scan_string(&mut self) {
-        self.advance_until('"');
+        self.str_start_pos = Some((self.line, self.column));
+        self.advance_string();
         if self.is_end() {
             // This is a non-recoverable error => early return
-            let start_position = self.find_string_start_position(&self.source[self.start..self.current]);
-            self.store_error(String::from("String is never terminated"), Some(start_position));
+            self.store_error(String::from("String is never terminated"), self.str_start_pos);
             return;
         }
-        self.advance();
-        let value = &self.source[self.start + 1..self.current - 1];
-        self.add_token(TokenType::String, Some(String::from(value)));
+        self.advance(); // consume closing "
+        self.add_token(TokenType::String, Some(self.unescape_string()));
+        self.str_start_pos = None;
     }
 
     fn scan_number(&mut self) {
@@ -157,6 +160,23 @@ impl<'a> Lexer<'a> {
         (true_line, true_start)
     }
 
+    fn unescape_string(&self) -> String {
+        let mut s = String::new();
+        let mut is_escaped = false;
+        for i in self.start + 1..self.current - 1 {
+            if !is_escaped {
+                match self.chars[i] {
+                    '\\' => is_escaped = true,
+                    x => s.push(x),
+                };
+            } else {
+                s.push(self.chars[i]);
+                is_escaped = false;
+            }
+        }
+        s
+    }
+
     fn add_token(&mut self, ttype: TokenType, value: Option<String>) {
         let true_value = value.unwrap_or(String::from(&self.source[self.start..self.current]));
         let (true_line, true_start) = match ttype {
@@ -201,12 +221,45 @@ impl<'a> Lexer<'a> {
         true
     }
 
-    fn advance_until(&mut self, expected: char) {
-        while self.peek() != expected && !self.is_end() {
-            if self.peek() == '\n' {
-                self.line += 1;
-                self.column = 1;
+    fn advance_line(&mut self) {
+        while self.peek() != '\n' && !self.is_end() {
+            self.advance();
+        }
+    }
+
+    fn advance_string(&mut self) {
+        let mut is_escaped = false;
+
+        while !self.is_end() {
+            // If last character wasn't '\\'
+            if !is_escaped {
+                // Then the three special cases are '\\', '\n' and '"'
+                match self.peek() {
+                    // if \, the next character is escaped
+                    '\\' => is_escaped = true,
+                    // if \n, update line and column counters
+                    '\n' => {
+                        self.line += 1;
+                        self.column = 0; // 0 because self.advance() will add 1
+                    }
+                    // if ", finish loop
+                    '"' => break,
+                    _ => {}
+                }
+            // If last character was '\'
+            } else {
+                // Then the next character can be either '\\' or '"', otherwise it's an error
+                match self.peek() {
+                    // If legal escape sequence, escaping is finished
+                    '\\' | '"' => {}
+                    // Otherwise it's an error, but lexing can continue - at worst we'll reach EOF, at best there will be another " somewhere
+                    _ => {
+                        self.store_error(format!("Invalid escape sequence: \\{}", self.peek()), None);
+                    }
+                }
+                is_escaped = false;
             }
+
             self.advance();
         }
     }
