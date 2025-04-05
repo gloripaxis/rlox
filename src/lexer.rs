@@ -140,26 +140,6 @@ impl<'a> Lexer<'a> {
         self.add_token(ttype, Some(String::from(value)));
     }
 
-    fn find_string_start_position(&self, value: &str) -> (usize, usize) {
-        let count_newlines = value.chars().filter(|c| *c == '\n').count();
-        let true_line = self.line - count_newlines;
-
-        let mut line_start: usize = self.start;
-        loop {
-            if line_start == 0 {
-                break;
-            }
-            if self.chars[line_start] == '\n' {
-                line_start += 1;
-                break;
-            }
-            line_start -= 1;
-        }
-        let true_start = self.start - line_start + 1;
-
-        (true_line, true_start)
-    }
-
     fn unescape_string(&self) -> String {
         let mut s = String::new();
         let mut is_escaped = false;
@@ -179,23 +159,23 @@ impl<'a> Lexer<'a> {
 
     fn add_token(&mut self, ttype: TokenType, value: Option<String>) {
         let true_value = value.unwrap_or(String::from(&self.source[self.start..self.current]));
-        let (true_line, true_start) = match ttype {
-            TokenType::String => self.find_string_start_position(&true_value),
-            _ => (self.line, self.column - 1),
+        let (true_line, true_col) = match self.str_start_pos {
+            Some(pos) => pos,
+            None => (self.line, self.column - 1),
         };
 
         let rc_value: Rc<str> = Rc::from(true_value);
 
         let literal = match ttype {
             TokenType::String => Literal::String(Rc::clone(&rc_value)),
-            TokenType::Number => Literal::Number(Rc::clone(&rc_value).parse().unwrap()),
+            TokenType::Number => Literal::Number(rc_value.parse().unwrap()),
             TokenType::True => Literal::Boolean(true),
             TokenType::False => Literal::Boolean(false),
             _ => Literal::Nil,
         };
 
         self.tokens
-            .push(Token::new(ttype, rc_value, literal, true_line, true_start))
+            .push(Token::new(ttype, rc_value, literal, true_line, true_col))
     }
 
     fn is_end(&self) -> bool {
