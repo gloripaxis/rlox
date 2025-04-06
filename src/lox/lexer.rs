@@ -12,7 +12,6 @@ pub struct Lexer<'a> {
     cur_pos: Pos,
 
     source: &'a str,
-    srclen: usize,
     chars: Vec<char>,
     tokens: Vec<Token>,
 
@@ -22,7 +21,6 @@ pub struct Lexer<'a> {
 impl<'a> Lexer<'a> {
     pub fn new(source: &'a str) -> Self {
         let chars: Vec<char> = source.chars().collect();
-        let srclen = chars.len();
 
         Self {
             start: 0,
@@ -31,7 +29,6 @@ impl<'a> Lexer<'a> {
             cur_pos: Pos::new(1, 1),
             source,
             chars,
-            srclen,
             tokens: Vec::new(),
             errors: Vec::new(),
         }
@@ -161,7 +158,7 @@ impl<'a> Lexer<'a> {
     }
 
     fn is_end(&self) -> bool {
-        self.current >= self.srclen
+        self.current >= self.source.len()
     }
 
     fn advance(&mut self) -> char {
@@ -233,7 +230,7 @@ impl<'a> Lexer<'a> {
     }
 
     fn peek_next(&self) -> char {
-        if self.current + 1 > self.srclen {
+        if self.current + 1 > self.source.len() {
             return '\0';
         }
         self.chars[self.current + 1]
