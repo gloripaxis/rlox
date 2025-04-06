@@ -3,9 +3,10 @@ use std::{cell::RefCell, rc::Rc};
 use crate::{
     env::Environment,
     errors::{ErrorInfo, LoxError},
-    parser::{expr::Expression, stmt::Statement},
     types::{
+        expression::Expr,
         literal::Lit,
+        statement::Stmt,
         token::{Token, TokenType},
     },
 };
@@ -18,7 +19,7 @@ pub struct Interpreter {
 
 impl Visitor<Lit> for Interpreter {
     // --------------------- EXPRESSIONS ---------------------
-    fn visit_unary_expr(&mut self, op: &Token, right: &Expression) -> Result<Lit, LoxError> {
+    fn visit_unary_expr(&mut self, op: &Token, right: &Expr) -> Result<Lit, LoxError> {
         let right_val = right.accept(self)?;
         match op.get_type() {
             TokenType::Minus => match right_val {
@@ -30,7 +31,7 @@ impl Visitor<Lit> for Interpreter {
         }
     }
 
-    fn visit_binary_expr(&mut self, left: &Expression, op: &Token, right: &Expression) -> Result<Lit, LoxError> {
+    fn visit_binary_expr(&mut self, left: &Expr, op: &Token, right: &Expr) -> Result<Lit, LoxError> {
         let left_lit = left.accept(self)?;
         let right_lit = right.accept(self)?;
 
@@ -74,7 +75,7 @@ impl Visitor<Lit> for Interpreter {
         }
     }
 
-    fn visit_logic_expr(&mut self, left: &Expression, op: &Token, right: &Expression) -> Result<Lit, LoxError> {
+    fn visit_logic_expr(&mut self, left: &Expr, op: &Token, right: &Expr) -> Result<Lit, LoxError> {
         let left_val = left.accept(self)?;
 
         // NOTE: Original implementation returned the literal value of the operand, not strictly true or false
@@ -90,7 +91,7 @@ impl Visitor<Lit> for Interpreter {
         }
     }
 
-    fn visit_grouping_expr(&mut self, expr: &Expression) -> Result<Lit, LoxError> {
+    fn visit_grouping_expr(&mut self, expr: &Expr) -> Result<Lit, LoxError> {
         expr.accept(self)
     }
 
@@ -102,25 +103,25 @@ impl Visitor<Lit> for Interpreter {
         self.env_stack.last().unwrap().borrow().get(name)
     }
 
-    fn visit_assign_expr(&mut self, name: &Token, right: &Expression) -> Result<Lit, LoxError> {
+    fn visit_assign_expr(&mut self, name: &Token, right: &Expr) -> Result<Lit, LoxError> {
         let lit = right.accept(self)?;
         self.env_stack.last().unwrap().borrow_mut().assign(name, lit.clone())?;
         Ok(lit)
     }
 
     // --------------------- STATEMENTS ---------------------
-    fn visit_expression_stmt(&mut self, expr: &Expression) -> Result<(), LoxError> {
+    fn visit_expression_stmt(&mut self, expr: &Expr) -> Result<(), LoxError> {
         expr.accept(self)?;
         Ok(())
     }
 
-    fn visit_print_stmt(&mut self, expr: &Expression) -> Result<(), LoxError> {
+    fn visit_print_stmt(&mut self, expr: &Expr) -> Result<(), LoxError> {
         let lit = expr.accept(self)?;
         println!("{lit}");
         Ok(())
     }
 
-    fn visit_var_stmt(&mut self, name: &Token, init: &Option<Expression>) -> Result<(), LoxError> {
+    fn visit_var_stmt(&mut self, name: &Token, init: &Option<Expr>) -> Result<(), LoxError> {
         let value = match init {
             Some(expr) => expr.accept(self)?,
             None => Lit::Nil,
@@ -133,7 +134,7 @@ impl Visitor<Lit> for Interpreter {
         Ok(())
     }
 
-    fn visit_block_stmt(&mut self, statements: &[Statement]) -> Result<(), LoxError> {
+    fn visit_block_stmt(&mut self, statements: &[Stmt]) -> Result<(), LoxError> {
         let new_env = Environment::new(Some(Rc::clone(self.env_stack.last().unwrap())));
         self.env_stack.push(Rc::new(RefCell::new(new_env)));
 
@@ -148,12 +149,7 @@ impl Visitor<Lit> for Interpreter {
         Ok(())
     }
 
-    fn visit_if_stmt(
-        &mut self,
-        cond: &Expression,
-        b_then: &Statement,
-        b_else: &Option<Box<Statement>>,
-    ) -> Result<(), LoxError> {
+    fn visit_if_stmt(&mut self, cond: &Expr, b_then: &Stmt, b_else: &Option<Box<Stmt>>) -> Result<(), LoxError> {
         let value = cond.accept(self)?;
         match value.is_truthy() {
             true => b_then.accept(self)?,
@@ -166,7 +162,7 @@ impl Visitor<Lit> for Interpreter {
         Ok(())
     }
 
-    fn visit_while_stmt(&mut self, cond: &Expression, stmt: &Statement) -> Result<(), LoxError> {
+    fn visit_while_stmt(&mut self, cond: &Expr, stmt: &Stmt) -> Result<(), LoxError> {
         while cond.accept(self)?.is_truthy() {
             stmt.accept(self)?;
         }
@@ -181,7 +177,7 @@ impl Interpreter {
         }
     }
 
-    pub fn interpret(&mut self, program: Vec<Statement>) -> Result<(), LoxError> {
+    pub fn interpret(&mut self, program: Vec<Stmt>) -> Result<(), LoxError> {
         for stmt in program.iter() {
             stmt.accept(self)?;
         }
