@@ -4,7 +4,6 @@ use crate::{
 };
 
 pub mod interpreter;
-pub mod printer;
 
 pub trait Visitor<T> {
     fn visit_unary_expr(&mut self, op: &Token, right: &Expr) -> Result<T, LoxError>;
