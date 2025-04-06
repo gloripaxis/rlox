@@ -1,11 +1,12 @@
-use std::rc::Rc;
-
 use expr::Expression;
 use stmt::Statement;
 
 use crate::{
     errors::{ErrorInfo, LoxError},
-    lexer::token::{Literal, Token, TokenType},
+    types::{
+        literal::Lit,
+        token::{Token, TokenType},
+    },
 };
 
 pub mod expr;
@@ -171,8 +172,7 @@ impl Parser {
             None => {
                 let fake_token = Token::new(
                     TokenType::True,
-                    Rc::from(String::from(";")),
-                    Literal::Boolean(true),
+                    Lit::Bool(true),
                     self.peek().get_location().0,
                     self.peek().get_location().1,
                 );

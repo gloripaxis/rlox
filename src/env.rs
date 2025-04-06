@@ -1,13 +1,17 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{
+    cell::RefCell,
+    collections::{HashMap, hash_map::Entry},
+    rc::Rc,
+};
 
 use crate::{
     errors::{ErrorInfo, LoxError},
-    lexer::token::{Literal, Token},
+    types::{literal::Lit, token::Token},
 };
 
 #[derive(Debug, Clone)]
 pub struct Environment {
-    env: HashMap<String, Literal>,
+    env: HashMap<String, Lit>,
     parent: Option<Rc<RefCell<Environment>>>,
 }
 
@@ -19,13 +23,13 @@ impl Environment {
         }
     }
 
-    pub fn define(&mut self, name: String, value: Literal) {
+    pub fn define(&mut self, name: String, value: Lit) {
         self.env.insert(name, value);
     }
 
-    pub fn assign(&mut self, name: &Token, value: Literal) -> Result<(), LoxError> {
-        if self.env.contains_key(name.get_lexeme()) {
-            self.env.insert(String::from(name.get_lexeme()), value);
+    pub fn assign(&mut self, name: &Token, value: Lit) -> Result<(), LoxError> {
+        if let Entry::Occupied(mut e) = self.env.entry(name.get_lexeme()) {
+            e.insert(value);
             return Ok(());
         }
 
@@ -37,9 +41,9 @@ impl Environment {
         Err(LoxError::Runtime(ErrorInfo::from_token(name, message)))
     }
 
-    pub fn get(&self, name: &Token) -> Result<Literal, LoxError> {
-        if self.env.contains_key(name.get_lexeme()) {
-            return Ok(self.env.get(name.get_lexeme()).unwrap().to_owned());
+    pub fn get(&self, name: &Token) -> Result<Lit, LoxError> {
+        if self.env.contains_key(&name.get_lexeme()) {
+            return Ok(self.env.get(&name.get_lexeme()).unwrap().to_owned());
         }
 
         if let Some(env) = &self.parent {

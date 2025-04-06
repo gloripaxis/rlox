@@ -1,62 +1,6 @@
-use std::{fmt, rc::Rc};
+use std::fmt;
 
-#[derive(Clone)]
-pub enum Literal {
-    Nil,
-    Number(f64),
-    String(Rc<str>),
-    Boolean(bool),
-}
-
-impl fmt::Debug for Literal {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Literal::Nil => write!(f, "nil"),
-            Literal::Number(x) => write!(f, "number ({})", x),
-            Literal::String(x) => write!(f, "string \"{}\"", x),
-            Literal::Boolean(x) => write!(f, "boolean ({})", x),
-        }
-    }
-}
-
-impl fmt::Display for Literal {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Literal::Nil => write!(f, "nil"),
-            Literal::Number(x) => {
-                if x.fract().abs() < f64::EPSILON {
-                    write!(f, "{:.0}", x)
-                } else {
-                    write!(f, "{}", x)
-                }
-            }
-            Literal::String(x) => write!(f, "\"{}\"", x),
-            Literal::Boolean(x) => write!(f, "{}", x),
-        }
-    }
-}
-
-impl PartialEq<Literal> for Literal {
-    fn eq(&self, other: &Literal) -> bool {
-        match (self, other) {
-            (Literal::Nil, Literal::Nil) => true,
-            (Literal::String(x), Literal::String(y)) => x == y,
-            (Literal::Number(x), Literal::Number(y)) => x == y,
-            (Literal::Boolean(x), Literal::Boolean(y)) => x == y,
-            _ => false,
-        }
-    }
-}
-
-impl Literal {
-    pub fn is_truthy(&self) -> bool {
-        match self {
-            Literal::Nil => false,
-            Literal::Boolean(x) => *x,
-            _ => true,
-        }
-    }
-}
+use super::literal::Lit;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum TokenType {
@@ -111,8 +55,54 @@ pub enum TokenType {
 
 impl fmt::Display for TokenType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = format!("{:?}", self);
-        write!(f, "{:>10}", s)
+        match self {
+            // Keywords should be printed lowercase
+            TokenType::And
+            | TokenType::Class
+            | TokenType::Else
+            | TokenType::False
+            | TokenType::For
+            | TokenType::Fun
+            | TokenType::If
+            | TokenType::Nil
+            | TokenType::Or
+            | TokenType::Print
+            | TokenType::Return
+            | TokenType::Super
+            | TokenType::This
+            | TokenType::True
+            | TokenType::Var
+            | TokenType::While => {
+                let s = format!("{:?}", self).to_lowercase();
+                write!(f, "{}", s)
+            }
+            // EndOfFile is a special token
+            TokenType::EndOfFile => {
+                write!(f, "EOF")
+            }
+            // All operators and special symbols should be represented truthfully
+            TokenType::Assign => write!(f, "="),
+            TokenType::Bang => write!(f, "!"),
+            TokenType::Comma => write!(f, ","),
+            TokenType::Dot => write!(f, "."),
+            TokenType::Eq => write!(f, "=="),
+            TokenType::Geq => write!(f, ">="),
+            TokenType::Gt => write!(f, ">"),
+            TokenType::LeftBrace => write!(f, "{{"),
+            TokenType::LeftParen => write!(f, "("),
+            TokenType::Leq => write!(f, "<="),
+            TokenType::Lt => write!(f, "<"),
+            TokenType::Minus => write!(f, "-"),
+            TokenType::Neq => write!(f, "!="),
+            TokenType::Plus => write!(f, "+"),
+            TokenType::RightBrace => write!(f, "}}"),
+            TokenType::RightParen => write!(f, ")"),
+            TokenType::Semicolon => write!(f, ";"),
+            TokenType::Slash => write!(f, "/"),
+            TokenType::Star => write!(f, "*"),
+            // String, Number and Identifier are represented by the enum name
+            _ => write!(f, "{:?}", self),
+        }
     }
 }
 
@@ -170,30 +160,37 @@ impl TokenType {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Token {
     ttype: TokenType,
-    lexeme: Rc<str>,
-    literal: Literal,
+    literal: Lit,
     line: usize,
     column: usize,
 }
 
-impl fmt::Display for Token {
+impl fmt::Debug for Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "[{}] ({:}:{:}) '{}'",
-            self.ttype, self.line, self.column, self.lexeme
+            "[{:?}] ({}:{}) '{}'",
+            self.ttype,
+            self.line,
+            self.column,
+            self.get_lexeme()
         )
     }
 }
 
+impl fmt::Display for Token {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.get_lexeme())
+    }
+}
+
 impl Token {
-    pub fn new(ttype: TokenType, lexeme: Rc<str>, literal: Literal, line: usize, column: usize) -> Self {
+    pub fn new(ttype: TokenType, literal: Lit, line: usize, column: usize) -> Self {
         Self {
             ttype,
-            lexeme,
             literal,
             line,
             column,
@@ -204,12 +201,15 @@ impl Token {
         self.ttype
     }
 
-    pub fn get_literal(&self) -> Literal {
+    pub fn get_literal(&self) -> Lit {
         self.literal.clone()
     }
 
-    pub fn get_lexeme(&self) -> &str {
-        &self.lexeme
+    pub fn get_lexeme(&self) -> String {
+        match self.literal {
+            Lit::Nil => format!("{}", self.ttype),
+            _ => format!("{}", self.literal),
+        }
     }
 
     pub fn get_location(&self) -> (usize, usize) {

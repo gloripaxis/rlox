@@ -1,7 +1,7 @@
 use crate::{
     errors::LoxError,
-    lexer::token::Token,
     parser::{expr::Expression, stmt::Statement},
+    types::token::Token,
 };
 
 pub mod interpreter;

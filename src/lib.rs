@@ -11,6 +11,7 @@ mod env;
 mod errors;
 mod lexer;
 mod parser;
+mod types;
 mod visitors;
 
 fn run(source: &str, interpreter: &mut Interpreter) -> Result<(), LoxError> {

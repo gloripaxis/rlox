@@ -1,5 +1,5 @@
 use super::expr::Expression;
-use crate::{errors::LoxError, lexer::token::Token, visitors::Visitor};
+use crate::{errors::LoxError, types::token::Token, visitors::Visitor};
 
 #[derive(Debug, Clone)]
 pub enum Statement {

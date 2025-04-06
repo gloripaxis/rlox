@@ -1,9 +1,7 @@
 use std::rc::Rc;
 
 use crate::errors::{ErrorInfo, LoxError};
-use token::{Literal, Token, TokenType};
-
-pub mod token;
+use crate::types::{literal::Lit, token::Token, token::TokenType};
 
 pub struct Lexer<'a> {
     start: usize,
@@ -50,13 +48,7 @@ impl<'a> Lexer<'a> {
             return Err(LoxError::Lexer(self.errors));
         }
 
-        let eof_token = Token::new(
-            TokenType::EndOfFile,
-            Rc::from("\0"),
-            Literal::Nil,
-            self.line,
-            self.column,
-        );
+        let eof_token = Token::new(TokenType::EndOfFile, Lit::Nil, self.line, self.column);
         self.tokens.push(eof_token);
         Ok(self.tokens)
     }
@@ -167,15 +159,15 @@ impl<'a> Lexer<'a> {
         let rc_value: Rc<str> = Rc::from(true_value);
 
         let literal = match ttype {
-            TokenType::String => Literal::String(Rc::clone(&rc_value)),
-            TokenType::Number => Literal::Number(rc_value.parse().unwrap()),
-            TokenType::True => Literal::Boolean(true),
-            TokenType::False => Literal::Boolean(false),
-            _ => Literal::Nil,
+            TokenType::String => Lit::Str(Rc::clone(&rc_value)),
+            TokenType::Number => Lit::Num(rc_value.parse().unwrap()),
+            TokenType::True => Lit::Bool(true),
+            TokenType::False => Lit::Bool(false),
+            TokenType::Identifier => Lit::Id(Rc::clone(&rc_value)),
+            _ => Lit::Nil,
         };
 
-        self.tokens
-            .push(Token::new(ttype, rc_value, literal, true_line, true_col))
+        self.tokens.push(Token::new(ttype, literal, true_line, true_col))
     }
 
     fn is_end(&self) -> bool {

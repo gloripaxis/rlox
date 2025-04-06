@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::fmt;
 
-use crate::lexer::token::Token;
+use crate::types::token::Token;
 
 #[derive(Debug)]
 pub struct ErrorInfo {

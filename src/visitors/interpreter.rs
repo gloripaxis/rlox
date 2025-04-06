@@ -3,8 +3,11 @@ use std::{cell::RefCell, rc::Rc};
 use crate::{
     env::Environment,
     errors::{ErrorInfo, LoxError},
-    lexer::token::{Literal, Token, TokenType},
     parser::{expr::Expression, stmt::Statement},
+    types::{
+        literal::Lit,
+        token::{Token, TokenType},
+    },
 };
 
 use super::Visitor;
@@ -13,93 +16,93 @@ pub struct Interpreter {
     env_stack: Vec<Rc<RefCell<Environment>>>,
 }
 
-impl Visitor<Literal> for Interpreter {
+impl Visitor<Lit> for Interpreter {
     // --------------------- EXPRESSIONS ---------------------
-    fn visit_unary_expr(&mut self, op: &Token, right: &Expression) -> Result<Literal, LoxError> {
+    fn visit_unary_expr(&mut self, op: &Token, right: &Expression) -> Result<Lit, LoxError> {
         let right_val = right.accept(self)?;
         match op.get_type() {
             TokenType::Minus => match right_val {
-                Literal::Number(x) => Ok(Literal::Number(-x)),
+                Lit::Num(x) => Ok(Lit::Num(-x)),
                 _ => Err(LoxError::Runtime(unary_number_error(op, right_val))),
             },
-            TokenType::Bang => Ok(Literal::Boolean(right_val.is_truthy())),
+            TokenType::Bang => Ok(Lit::Bool(right_val.is_truthy())),
             x => unreachable!("ENCOUNTERED INVALID UNARY OPERATOR: {x}",),
         }
     }
 
-    fn visit_binary_expr(&mut self, left: &Expression, op: &Token, right: &Expression) -> Result<Literal, LoxError> {
+    fn visit_binary_expr(&mut self, left: &Expression, op: &Token, right: &Expression) -> Result<Lit, LoxError> {
         let left_lit = left.accept(self)?;
         let right_lit = right.accept(self)?;
 
         match op.get_type() {
             TokenType::Minus => match (&left_lit, &right_lit) {
-                (Literal::Number(l), Literal::Number(r)) => Ok(Literal::Number(l - r)),
+                (Lit::Num(l), Lit::Num(r)) => Ok(Lit::Num(l - r)),
                 _ => Err(LoxError::Runtime(binary_number_error(op, left_lit, right_lit))),
             },
             TokenType::Plus => match (&left_lit, &right_lit) {
-                (Literal::Number(l), Literal::Number(r)) => Ok(Literal::Number(l + r)),
-                (Literal::String(l), Literal::String(r)) => Ok(Literal::String(Rc::from(format!("{l}{r}")))),
+                (Lit::Num(l), Lit::Num(r)) => Ok(Lit::Num(l + r)),
+                (Lit::Str(l), Lit::Str(r)) => Ok(Lit::Str(Rc::from(format!("{l}{r}")))),
                 _ => Err(LoxError::Runtime(plus_error(op, left_lit, right_lit))),
             },
             TokenType::Slash => match (&left_lit, &right_lit) {
-                (Literal::Number(l), Literal::Number(r)) => Ok(Literal::Number(l / r)),
+                (Lit::Num(l), Lit::Num(r)) => Ok(Lit::Num(l / r)),
                 _ => Err(LoxError::Runtime(binary_number_error(op, left_lit, right_lit))),
             },
             TokenType::Star => match (&left_lit, &right_lit) {
-                (Literal::Number(l), Literal::Number(r)) => Ok(Literal::Number(l * r)),
+                (Lit::Num(l), Lit::Num(r)) => Ok(Lit::Num(l * r)),
                 _ => Err(LoxError::Runtime(binary_number_error(op, left_lit, right_lit))),
             },
             TokenType::Gt => match (&left_lit, &right_lit) {
-                (Literal::Number(l), Literal::Number(r)) => Ok(Literal::Boolean(l > r)),
+                (Lit::Num(l), Lit::Num(r)) => Ok(Lit::Bool(l > r)),
                 _ => Err(LoxError::Runtime(binary_number_error(op, left_lit, right_lit))),
             },
             TokenType::Geq => match (&left_lit, &right_lit) {
-                (Literal::Number(l), Literal::Number(r)) => Ok(Literal::Boolean(l >= r)),
+                (Lit::Num(l), Lit::Num(r)) => Ok(Lit::Bool(l >= r)),
                 _ => Err(LoxError::Runtime(binary_number_error(op, left_lit, right_lit))),
             },
             TokenType::Lt => match (&left_lit, &right_lit) {
-                (Literal::Number(l), Literal::Number(r)) => Ok(Literal::Boolean(l < r)),
+                (Lit::Num(l), Lit::Num(r)) => Ok(Lit::Bool(l < r)),
                 _ => Err(LoxError::Runtime(binary_number_error(op, left_lit, right_lit))),
             },
             TokenType::Leq => match (&left_lit, &right_lit) {
-                (Literal::Number(l), Literal::Number(r)) => Ok(Literal::Boolean(l <= r)),
+                (Lit::Num(l), Lit::Num(r)) => Ok(Lit::Bool(l <= r)),
                 _ => Err(LoxError::Runtime(binary_number_error(op, left_lit, right_lit))),
             },
-            TokenType::Eq => Ok(Literal::Boolean(left_lit == right_lit)),
-            TokenType::Neq => Ok(Literal::Boolean(left_lit != right_lit)),
+            TokenType::Eq => Ok(Lit::Bool(left_lit == right_lit)),
+            TokenType::Neq => Ok(Lit::Bool(left_lit != right_lit)),
             x => unreachable!("ENCOUNTERED INVALID BINARY OPERATOR: {x}"),
         }
     }
 
-    fn visit_logic_expr(&mut self, left: &Expression, op: &Token, right: &Expression) -> Result<Literal, LoxError> {
+    fn visit_logic_expr(&mut self, left: &Expression, op: &Token, right: &Expression) -> Result<Lit, LoxError> {
         let left_val = left.accept(self)?;
 
         // NOTE: Original implementation returned the literal value of the operand, not strictly true or false
         // I find that disgusting and so decided to strictly return true or false :)
         let truthy = left_val.is_truthy();
         match op.get_type() {
-            TokenType::Or if truthy => Ok(Literal::Boolean(true)),
-            TokenType::And if !truthy => Ok(Literal::Boolean(false)),
+            TokenType::Or if truthy => Ok(Lit::Bool(true)),
+            TokenType::And if !truthy => Ok(Lit::Bool(false)),
             _ => {
                 let val = right.accept(self)?;
-                Ok(Literal::Boolean(val.is_truthy()))
+                Ok(Lit::Bool(val.is_truthy()))
             }
         }
     }
 
-    fn visit_grouping_expr(&mut self, expr: &Expression) -> Result<Literal, LoxError> {
+    fn visit_grouping_expr(&mut self, expr: &Expression) -> Result<Lit, LoxError> {
         expr.accept(self)
     }
 
-    fn visit_literal_expr(&mut self, value: &Token) -> Result<Literal, LoxError> {
+    fn visit_literal_expr(&mut self, value: &Token) -> Result<Lit, LoxError> {
         Ok(value.get_literal())
     }
 
-    fn visit_variable_expr(&mut self, name: &Token) -> Result<Literal, LoxError> {
+    fn visit_variable_expr(&mut self, name: &Token) -> Result<Lit, LoxError> {
         self.env_stack.last().unwrap().borrow().get(name)
     }
 
-    fn visit_assign_expr(&mut self, name: &Token, right: &Expression) -> Result<Literal, LoxError> {
+    fn visit_assign_expr(&mut self, name: &Token, right: &Expression) -> Result<Lit, LoxError> {
         let lit = right.accept(self)?;
         self.env_stack.last().unwrap().borrow_mut().assign(name, lit.clone())?;
         Ok(lit)
@@ -120,13 +123,13 @@ impl Visitor<Literal> for Interpreter {
     fn visit_var_stmt(&mut self, name: &Token, init: &Option<Expression>) -> Result<(), LoxError> {
         let value = match init {
             Some(expr) => expr.accept(self)?,
-            None => Literal::Nil,
+            None => Lit::Nil,
         };
         self.env_stack
             .last()
             .unwrap()
             .borrow_mut()
-            .define(String::from(name.get_lexeme()), value);
+            .define(name.get_lexeme(), value);
         Ok(())
     }
 
@@ -186,13 +189,13 @@ impl Interpreter {
     }
 }
 
-fn unary_number_error(op_token: &Token, right: Literal) -> ErrorInfo {
+fn unary_number_error(op_token: &Token, right: Lit) -> ErrorInfo {
     let lexeme = op_token.get_lexeme();
     let msg = format!("Operand of '{}' must be a number; found {:?}", lexeme, right);
     ErrorInfo::from_token(op_token, msg)
 }
 
-fn binary_number_error(op_token: &Token, left: Literal, right: Literal) -> ErrorInfo {
+fn binary_number_error(op_token: &Token, left: Lit, right: Lit) -> ErrorInfo {
     let lexeme = op_token.get_lexeme();
     let msg = format!(
         "Operands of '{}' must be numbers; found {:?} and {:?}",
@@ -201,7 +204,7 @@ fn binary_number_error(op_token: &Token, left: Literal, right: Literal) -> Error
     ErrorInfo::from_token(op_token, msg)
 }
 
-fn plus_error(op_token: &Token, left: Literal, right: Literal) -> ErrorInfo {
+fn plus_error(op_token: &Token, left: Lit, right: Lit) -> ErrorInfo {
     let msg = format!(
         "Operands of '+' must be both strings or both numbers; found {:?} and {:?}",
         left, right
