@@ -1,34 +1,27 @@
 use std::error::Error;
 use std::fmt;
 
+use crate::types::position::Pos;
 use crate::types::token::Token;
 
 #[derive(Debug)]
 pub struct ErrorInfo {
     message: String,
-    start: Option<(usize, usize)>,
-    location: (usize, usize),
+    start: Option<Pos>,
+    location: Pos,
 }
 
 impl fmt::Display for ErrorInfo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.start {
-            Some((line, col)) => write!(
-                f,
-                " between line {}, column {} and line {}, column {}: {}",
-                line, col, self.location.0, self.location.1, self.message
-            ),
-            None => write!(
-                f,
-                " at line {}, column {}: {}",
-                self.location.0, self.location.1, self.message
-            ),
+            Some(start) => write!(f, " between {} and {}: {}", start, self.location, self.message),
+            None => write!(f, " at {}: {}", self.location, self.message),
         }
     }
 }
 
 impl ErrorInfo {
-    pub fn new(location: (usize, usize), message: String) -> Self {
+    pub fn new(location: Pos, message: String) -> Self {
         Self {
             message,
             start: None,
@@ -36,7 +29,7 @@ impl ErrorInfo {
         }
     }
 
-    pub fn with_start(start: (usize, usize), location: (usize, usize), message: String) -> Self {
+    pub fn with_start(start: Pos, location: Pos, message: String) -> Self {
         Self {
             message,
             start: Some(start),
@@ -48,7 +41,7 @@ impl ErrorInfo {
         Self {
             message,
             start: None,
-            location: token.get_location(),
+            location: token.get_position(),
         }
     }
 }

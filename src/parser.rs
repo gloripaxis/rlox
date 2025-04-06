@@ -170,12 +170,7 @@ impl Parser {
         let cond = match orig_cond {
             Some(expr) => expr,
             None => {
-                let fake_token = Token::new(
-                    TokenType::True,
-                    Lit::Bool(true),
-                    self.peek().get_location().0,
-                    self.peek().get_location().1,
-                );
+                let fake_token = Token::new(TokenType::True, Lit::Bool(true), self.peek().get_position());
                 Expression::Literal(fake_token)
             }
         };

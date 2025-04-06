@@ -1,6 +1,6 @@
 use std::fmt;
 
-use super::literal::Lit;
+use super::{literal::Lit, position::Pos};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum TokenType {
@@ -164,8 +164,7 @@ impl TokenType {
 pub struct Token {
     ttype: TokenType,
     literal: Lit,
-    line: usize,
-    column: usize,
+    position: Pos,
 }
 
 impl fmt::Debug for Token {
@@ -174,8 +173,8 @@ impl fmt::Debug for Token {
             f,
             "[{:?}] ({}:{}) '{}'",
             self.ttype,
-            self.line,
-            self.column,
+            self.position.line,
+            self.position.col,
             self.get_lexeme()
         )
     }
@@ -188,12 +187,11 @@ impl fmt::Display for Token {
 }
 
 impl Token {
-    pub fn new(ttype: TokenType, literal: Lit, line: usize, column: usize) -> Self {
+    pub fn new(ttype: TokenType, literal: Lit, position: Pos) -> Self {
         Self {
             ttype,
             literal,
-            line,
-            column,
+            position,
         }
     }
 
@@ -212,7 +210,7 @@ impl Token {
         }
     }
 
-    pub fn get_location(&self) -> (usize, usize) {
-        (self.line, self.column)
+    pub fn get_position(&self) -> Pos {
+        self.position
     }
 }

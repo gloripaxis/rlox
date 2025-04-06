@@ -1,15 +1,15 @@
 use std::rc::Rc;
 
 use crate::errors::{ErrorInfo, LoxError};
+use crate::types::position::Pos;
 use crate::types::{literal::Lit, token::Token, token::TokenType};
 
 pub struct Lexer<'a> {
     start: usize,
     current: usize,
-    line: usize,
-    column: usize,
 
-    str_start_pos: Option<(usize, usize)>,
+    start_pos: Pos,
+    cur_pos: Pos,
 
     source: &'a str,
     srclen: usize,
@@ -27,20 +27,20 @@ impl<'a> Lexer<'a> {
         Self {
             start: 0,
             current: 0,
-            line: 1,
-            column: 1,
+            start_pos: Pos::new(1, 1),
+            cur_pos: Pos::new(1, 1),
             source,
             chars,
             srclen,
             tokens: Vec::new(),
             errors: Vec::new(),
-            str_start_pos: None,
         }
     }
 
     pub fn scan(mut self) -> Result<Vec<Token>, LoxError> {
         while !self.is_end() {
             self.start = self.current;
+            self.start_pos = self.cur_pos;
             self.scan_token();
         }
 
@@ -48,7 +48,7 @@ impl<'a> Lexer<'a> {
             return Err(LoxError::Lexer(self.errors));
         }
 
-        let eof_token = Token::new(TokenType::EndOfFile, Lit::Nil, self.line, self.column);
+        let eof_token = Token::new(TokenType::EndOfFile, Lit::Nil, self.cur_pos);
         self.tokens.push(eof_token);
         Ok(self.tokens)
     }
@@ -71,10 +71,7 @@ impl<'a> Lexer<'a> {
             ' ' | '\r' | '\t' => {}
 
             // Newlines
-            '\n' => {
-                self.line += 1;
-                self.column = 1;
-            }
+            '\n' => self.cur_pos.newline(None),
 
             // Strings
             '"' => self.scan_string(),
@@ -96,16 +93,14 @@ impl<'a> Lexer<'a> {
     }
 
     fn scan_string(&mut self) {
-        self.str_start_pos = Some((self.line, self.column));
         self.advance_string();
         if self.is_end() {
             // This is a non-recoverable error => early return
-            self.store_error(String::from("String is never terminated"), self.str_start_pos);
+            self.store_error(String::from("String is never terminated"), Some(self.start_pos));
             return;
         }
         self.advance(); // consume closing "
         self.add_token(TokenType::String, Some(self.unescape_string()));
-        self.str_start_pos = None;
     }
 
     fn scan_number(&mut self) {
@@ -151,11 +146,6 @@ impl<'a> Lexer<'a> {
 
     fn add_token(&mut self, ttype: TokenType, value: Option<String>) {
         let true_value = value.unwrap_or(String::from(&self.source[self.start..self.current]));
-        let (true_line, true_col) = match self.str_start_pos {
-            Some(pos) => pos,
-            None => (self.line, self.column - 1),
-        };
-
         let rc_value: Rc<str> = Rc::from(true_value);
 
         let literal = match ttype {
@@ -167,7 +157,7 @@ impl<'a> Lexer<'a> {
             _ => Lit::Nil,
         };
 
-        self.tokens.push(Token::new(ttype, literal, true_line, true_col))
+        self.tokens.push(Token::new(ttype, literal, self.start_pos))
     }
 
     fn is_end(&self) -> bool {
@@ -177,7 +167,7 @@ impl<'a> Lexer<'a> {
     fn advance(&mut self) -> char {
         let c: char = self.chars[self.current];
         self.current += 1;
-        self.column += 1;
+        self.cur_pos.next();
         c
     }
 
@@ -189,7 +179,7 @@ impl<'a> Lexer<'a> {
             return false;
         }
         self.current += 1;
-        self.column += 1;
+        self.cur_pos.next();
         true
     }
 
@@ -211,8 +201,7 @@ impl<'a> Lexer<'a> {
                     '\\' => is_escaped = true,
                     // if \n, update line and column counters
                     '\n' => {
-                        self.line += 1;
-                        self.column = 0; // 0 because self.advance() will add 1
+                        self.cur_pos.newline(Some(0));
                     }
                     // if ", finish loop
                     '"' => break,
@@ -250,10 +239,10 @@ impl<'a> Lexer<'a> {
         self.chars[self.current + 1]
     }
 
-    fn store_error(&mut self, message: String, start_pos: Option<(usize, usize)>) {
-        let einfo = match start_pos {
-            Some((l, c)) => ErrorInfo::with_start((l, c), (self.line, self.column - 1), message.to_string()),
-            _ => ErrorInfo::new((self.line, self.column - 1), message.to_string()),
+    fn store_error(&mut self, message: String, pos: Option<Pos>) {
+        let einfo = match pos {
+            Some(p) => ErrorInfo::with_start(p, self.cur_pos.left(), message.to_string()),
+            _ => ErrorInfo::new(self.cur_pos.left(), message.to_string()),
         };
         self.errors.push(einfo);
     }
