@@ -61,7 +61,7 @@ impl<'a> Lexer<'a> {
 
             // Division or Comments
             '/' => match self.advance_maybe('/') {
-                true => self.advance_line(),
+                true => self.advance_comment(),
                 false => self.add_token(TokenType::Slash, None),
             },
             // Regular whitespace
@@ -80,7 +80,9 @@ impl<'a> Lexer<'a> {
             'A'..='Z' | 'a'..='z' => self.scan_identifier_or_keyword(),
 
             // Unexpected characters
-            _ => self.errors.push(LoxError::illegal_character(self.cur_pos, c)),
+            _ => self
+                .errors
+                .push(LoxError::illegal_character(self.cur_pos.get_prev(), c)),
         }
     }
 
@@ -181,7 +183,7 @@ impl<'a> Lexer<'a> {
         true
     }
 
-    fn advance_line(&mut self) {
+    fn advance_comment(&mut self) {
         while self.peek() != '\n' && !self.is_end() {
             self.advance();
         }
@@ -231,5 +233,306 @@ impl<'a> Lexer<'a> {
             return '\0';
         }
         self.chars[self.current + 1]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn tokens_for(source: &'static str) -> Vec<Token> {
+        Lexer::new(source).scan().unwrap()
+    }
+
+    fn match_tokens_with_types_and_literals(tokens: Vec<Token>, types: &[TokenType], literals: &[Lit]) {
+        assert_eq!(tokens.len(), types.len() + 1);
+        assert_eq!(tokens.len(), literals.len() + 1);
+        for ((t, tt), l) in tokens.iter().zip(types).zip(literals) {
+            assert_eq!(t.get_type(), *tt);
+            match (&l, &t.get_literal()) {
+                (Lit::Id(x), Lit::Id(y)) => assert_eq!(x, y),
+                _ => assert_eq!(*l, t.get_literal()),
+            }
+        }
+        assert_eq!(tokens.last().unwrap().get_type(), TokenType::EndOfFile);
+    }
+
+    #[test]
+    fn correct_single_char_symbols() {
+        let source = "( ) { } , . ; - + *";
+        let exp_tt = [
+            TokenType::LeftParen,
+            TokenType::RightParen,
+            TokenType::LeftBrace,
+            TokenType::RightBrace,
+            TokenType::Comma,
+            TokenType::Dot,
+            TokenType::Semicolon,
+            TokenType::Minus,
+            TokenType::Plus,
+            TokenType::Star,
+        ];
+        let exp_lit = [
+            Lit::Nil,
+            Lit::Nil,
+            Lit::Nil,
+            Lit::Nil,
+            Lit::Nil,
+            Lit::Nil,
+            Lit::Nil,
+            Lit::Nil,
+            Lit::Nil,
+            Lit::Nil,
+        ];
+        match_tokens_with_types_and_literals(tokens_for(source), &exp_tt, &exp_lit);
+    }
+
+    #[test]
+    fn correct_ambiguous_symbols() {
+        let source = "/ = ! != == > >= < <=";
+        let exp_tt = [
+            TokenType::Slash,
+            TokenType::Assign,
+            TokenType::Bang,
+            TokenType::Neq,
+            TokenType::Eq,
+            TokenType::Gt,
+            TokenType::Geq,
+            TokenType::Lt,
+            TokenType::Leq,
+        ];
+        let exp_lit = [
+            Lit::Nil,
+            Lit::Nil,
+            Lit::Nil,
+            Lit::Nil,
+            Lit::Nil,
+            Lit::Nil,
+            Lit::Nil,
+            Lit::Nil,
+            Lit::Nil,
+        ];
+        match_tokens_with_types_and_literals(tokens_for(source), &exp_tt, &exp_lit);
+    }
+
+    #[test]
+    fn correct_identifiers() {
+        let source = "myvar myfunc var2 for2 whiletrue class2";
+        let exp_tt = [
+            TokenType::Identifier,
+            TokenType::Identifier,
+            TokenType::Identifier,
+            TokenType::Identifier,
+            TokenType::Identifier,
+            TokenType::Identifier,
+        ];
+        let exp_lit = [
+            Lit::Id(Rc::from(String::from("myvar"))),
+            Lit::Id(Rc::from(String::from("myfunc"))),
+            Lit::Id(Rc::from(String::from("var2"))),
+            Lit::Id(Rc::from(String::from("for2"))),
+            Lit::Id(Rc::from(String::from("whiletrue"))),
+            Lit::Id(Rc::from(String::from("class2"))),
+        ];
+        match_tokens_with_types_and_literals(tokens_for(source), &exp_tt, &exp_lit);
+    }
+
+    #[test]
+    fn correct_strings() {
+        let source = "\"value\" \"myname\\\"is\" \"my\\\\name\" \"abc\ndef\" \"abc\n\"";
+        println!("{source}");
+        let exp_tt = [
+            TokenType::String,
+            TokenType::String,
+            TokenType::String,
+            TokenType::String,
+            TokenType::String,
+        ];
+        let exp_lit = [
+            Lit::Str(Rc::from(String::from("value"))),
+            Lit::Str(Rc::from(String::from("myname\"is"))),
+            Lit::Str(Rc::from(String::from("my\\name"))),
+            Lit::Str(Rc::from(String::from("abc\ndef"))),
+            Lit::Str(Rc::from(String::from("abc\n"))),
+        ];
+        match_tokens_with_types_and_literals(tokens_for(source), &exp_tt, &exp_lit);
+    }
+
+    #[test]
+    fn correct_numbers() {
+        let source = "12.34 12.00 17";
+        let exp_tt = [TokenType::Number, TokenType::Number, TokenType::Number];
+        let exp_lit = [Lit::Num(12.34), Lit::Num(12.00), Lit::Num(17.00)];
+        match_tokens_with_types_and_literals(tokens_for(source), &exp_tt, &exp_lit);
+    }
+
+    #[test]
+    fn correct_bools() {
+        let source = "true false";
+        let exp_tt = [TokenType::True, TokenType::False];
+        let exp_lit = [Lit::Bool(true), Lit::Bool(false)];
+        match_tokens_with_types_and_literals(tokens_for(source), &exp_tt, &exp_lit);
+    }
+
+    #[test]
+    fn correct_keywords() {
+        let source = "and class else fun for if nil or print return super this var while";
+        let exp_tt = [
+            TokenType::And,
+            TokenType::Class,
+            TokenType::Else,
+            TokenType::Fun,
+            TokenType::For,
+            TokenType::If,
+            TokenType::Nil,
+            TokenType::Or,
+            TokenType::Print,
+            TokenType::Return,
+            TokenType::Super,
+            TokenType::This,
+            TokenType::Var,
+            TokenType::While,
+        ];
+        let exp_lit = [
+            Lit::Nil,
+            Lit::Nil,
+            Lit::Nil,
+            Lit::Nil,
+            Lit::Nil,
+            Lit::Nil,
+            Lit::Nil,
+            Lit::Nil,
+            Lit::Nil,
+            Lit::Nil,
+            Lit::Nil,
+            Lit::Nil,
+            Lit::Nil,
+            Lit::Nil,
+        ];
+        match_tokens_with_types_and_literals(tokens_for(source), &exp_tt, &exp_lit);
+    }
+
+    #[test]
+    fn correct_comments() {
+        let source = "var a = 10; //should be ignored";
+        let tokens = tokens_for(source);
+        assert_eq!(tokens.len(), 6);
+        assert_eq!(tokens.get(4).unwrap().get_type(), TokenType::Semicolon);
+    }
+
+    #[test]
+    fn whitespace_ignored() {
+        let source = "   \r \n \t   ";
+        let tokens = Lexer::new(source).scan().unwrap();
+        assert_eq!(tokens.len(), 1);
+        assert_eq!(tokens.last().unwrap().get_type(), TokenType::EndOfFile);
+    }
+
+    #[test]
+    fn illegal_string_escape() {
+        let source = r#" "value\evalue" "#;
+        let result = Lexer::new(source).scan();
+        match result {
+            Ok(_) => panic!("Expected invalid escape sequence"),
+            Err(e) => {
+                assert_eq!(e.len(), 1);
+                let err = e.first().unwrap();
+                assert_eq!(
+                    "ParseError at line 1, column 9: Invalid escape sequence '\\e'",
+                    format!("{err}")
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn unexpected_character() {
+        let source = "&";
+        let result = Lexer::new(source).scan();
+        match result {
+            Ok(_) => panic!("Expected error 'Encountered illegal character'"),
+            Err(errors) => {
+                assert_eq!(errors.len(), 1);
+                assert_eq!(
+                    format!("{}", errors.first().unwrap()),
+                    "ParseError at line 1, column 1: Encountered illegal character '&'"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn unterminated_string() {
+        let source = "var x = 10;\nvar str = \"abcdef\nghijkl\nmno";
+        let result = Lexer::new(source).scan();
+        match result {
+            Ok(_) => panic!("Expected error: 'Unterminated string'"),
+            Err(errors) => {
+                assert_eq!(errors.len(), 1);
+                assert_eq!(
+                    format!("{}", errors.first().unwrap()),
+                    "ParseError at line 4, column 4: Unterminated string starting at line 2, column 11"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn tricky_symbols() {
+        let source = ">== === ==!==== 2//b";
+        let exp_tt = [
+            TokenType::Geq,
+            TokenType::Assign,
+            TokenType::Eq,
+            TokenType::Assign,
+            TokenType::Eq,
+            TokenType::Neq,
+            TokenType::Eq,
+            TokenType::Assign,
+            TokenType::Number,
+        ];
+        let exp_lit = [
+            Lit::Nil,
+            Lit::Nil,
+            Lit::Nil,
+            Lit::Nil,
+            Lit::Nil,
+            Lit::Nil,
+            Lit::Nil,
+            Lit::Nil,
+            Lit::Num(2.0),
+        ];
+        match_tokens_with_types_and_literals(tokens_for(source), &exp_tt, &exp_lit);
+    }
+
+    #[test]
+    fn position_tracking() {
+        let source = r#"
+var x = "abc
+def";
+var y = 8; // comment ignored
+var z = true;
+"#;
+        let tokens = Lexer::new(source).scan().unwrap();
+        let positions = [
+            Pos::new(2, 1),
+            Pos::new(2, 5),
+            Pos::new(2, 7),
+            Pos::new(2, 9),
+            Pos::new(3, 5),
+            Pos::new(4, 1),
+            Pos::new(4, 5),
+            Pos::new(4, 7),
+            Pos::new(4, 9),
+            Pos::new(4, 10),
+            Pos::new(5, 1),
+            Pos::new(5, 5),
+            Pos::new(5, 7),
+            Pos::new(5, 9),
+            Pos::new(5, 13),
+        ];
+        for (t, p) in tokens.iter().zip(positions) {
+            assert_eq!(t.get_position(), p);
+        }
     }
 }

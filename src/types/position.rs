@@ -12,6 +12,12 @@ impl fmt::Display for Pos {
     }
 }
 
+impl PartialEq for Pos {
+    fn eq(&self, other: &Self) -> bool {
+        self.line == other.line && self.col == other.col
+    }
+}
+
 impl Pos {
     pub fn new(line: usize, col: usize) -> Self {
         Self { line, col }
@@ -24,5 +30,12 @@ impl Pos {
 
     pub fn next(&mut self) {
         self.col += 1;
+    }
+
+    pub fn get_prev(&self) -> Self {
+        Self {
+            line: self.line,
+            col: self.col - 1,
+        }
     }
 }
