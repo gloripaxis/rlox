@@ -3,8 +3,6 @@ use crate::{
     types::{expression::Expr, statement::Stmt, token::Token},
 };
 
-pub mod interpreter;
-
 pub trait Visitor<T> {
     fn visit_unary_expr(&mut self, op: &Token, right: &Expr) -> Result<T, LoxError>;
     fn visit_binary_expr(&mut self, left: &Expr, op: &Token, right: &Expr) -> Result<T, LoxError>;

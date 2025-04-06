@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
+use super::env::Environment;
 use crate::{
-    env::Environment,
     errors::{ErrorInfo, LoxError},
     types::{
         expression::Expr,
@@ -9,9 +9,8 @@ use crate::{
         statement::Stmt,
         token::{Token, TokenType},
     },
+    visitors::Visitor,
 };
-
-use super::Visitor;
 
 pub struct Interpreter {
     env_stack: Vec<Rc<RefCell<Environment>>>,

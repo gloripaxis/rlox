@@ -3,14 +3,10 @@ use std::io::Write;
 use std::{fs, io};
 
 use errors::LoxError;
-use lexer::Lexer;
-use parser::Parser;
-use visitors::interpreter::Interpreter;
+use lox::{interpreter::Interpreter, lexer::Lexer, parser::Parser};
 
-mod env;
 mod errors;
-mod lexer;
-mod parser;
+mod lox;
 mod types;
 mod visitors;
 
