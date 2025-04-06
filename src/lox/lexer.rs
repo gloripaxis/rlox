@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use crate::errors::{ErrorInfo, LoxError};
+use crate::errors::LoxError;
 use crate::types::position::Pos;
 use crate::types::{literal::Lit, token::Token, token::TokenType};
 
@@ -15,7 +15,7 @@ pub struct Lexer<'a> {
     chars: Vec<char>,
     tokens: Vec<Token>,
 
-    errors: Vec<ErrorInfo>,
+    errors: Vec<LoxError>,
 }
 
 impl<'a> Lexer<'a> {
@@ -34,7 +34,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    pub fn scan(mut self) -> Result<Vec<Token>, LoxError> {
+    pub fn scan(mut self) -> Result<Vec<Token>, Vec<LoxError>> {
         while !self.is_end() {
             self.start = self.current;
             self.start_pos = self.cur_pos;
@@ -42,7 +42,7 @@ impl<'a> Lexer<'a> {
         }
 
         if !self.errors.is_empty() {
-            return Err(LoxError::Lexer(self.errors));
+            return Err(self.errors);
         }
 
         let eof_token = Token::new(TokenType::EndOfFile, Lit::Nil, self.cur_pos);
@@ -80,7 +80,7 @@ impl<'a> Lexer<'a> {
             'A'..='Z' | 'a'..='z' => self.scan_identifier_or_keyword(),
 
             // Unexpected characters
-            _ => self.store_error(format!("Encountered illegal character '{c}'"), None),
+            _ => self.errors.push(LoxError::illegal_character(self.cur_pos, c)),
         }
     }
 
@@ -93,7 +93,8 @@ impl<'a> Lexer<'a> {
         self.advance_string();
         if self.is_end() {
             // This is a non-recoverable error => early return
-            self.store_error(String::from("String is never terminated"), Some(self.start_pos));
+            self.errors
+                .push(LoxError::unterminated_string(self.cur_pos, self.start_pos));
             return;
         }
         self.advance(); // consume closing "
@@ -197,9 +198,7 @@ impl<'a> Lexer<'a> {
                     // if \, the next character is escaped
                     '\\' => is_escaped = true,
                     // if \n, update line and column counters
-                    '\n' => {
-                        self.cur_pos.newline(Some(0));
-                    }
+                    '\n' => self.cur_pos.newline(Some(0)),
                     // if ", finish loop
                     '"' => break,
                     _ => {}
@@ -211,9 +210,7 @@ impl<'a> Lexer<'a> {
                     // If legal escape sequence, escaping is finished
                     '\\' | '"' => {}
                     // Otherwise it's an error, but lexing can continue - at worst we'll reach EOF, at best there will be another " somewhere
-                    _ => {
-                        self.store_error(format!("Invalid escape sequence: \\{}", self.peek()), None);
-                    }
+                    _ => self.errors.push(LoxError::invalid_escape(self.cur_pos, self.peek())),
                 }
                 is_escaped = false;
             }
@@ -234,13 +231,5 @@ impl<'a> Lexer<'a> {
             return '\0';
         }
         self.chars[self.current + 1]
-    }
-
-    fn store_error(&mut self, message: String, pos: Option<Pos>) {
-        let einfo = match pos {
-            Some(p) => ErrorInfo::with_start(p, self.cur_pos.left(), message.to_string()),
-            _ => ErrorInfo::new(self.cur_pos.left(), message.to_string()),
-        };
-        self.errors.push(einfo);
     }
 }

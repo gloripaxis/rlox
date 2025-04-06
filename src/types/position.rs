@@ -25,11 +25,4 @@ impl Pos {
     pub fn next(&mut self) {
         self.col += 1;
     }
-
-    pub fn left(&self) -> Self {
-        Self {
-            line: self.line,
-            col: self.col - 1,
-        }
-    }
 }

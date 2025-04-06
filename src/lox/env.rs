@@ -5,7 +5,7 @@ use std::{
 };
 
 use crate::{
-    errors::{ErrorInfo, LoxError},
+    errors::LoxError,
     types::{literal::Lit, token::Token},
 };
 
@@ -37,8 +37,7 @@ impl Environment {
             return env.borrow_mut().assign(name, value);
         }
 
-        let message = format!("Undefined variable: '{}'", name.get_lexeme());
-        Err(LoxError::Runtime(ErrorInfo::from_token(name, message)))
+        Err(LoxError::undefined_variable(name.get_position(), &name.get_literal()))
     }
 
     pub fn get(&self, name: &Token) -> Result<Lit, LoxError> {
@@ -50,7 +49,6 @@ impl Environment {
             return env.borrow_mut().get(name);
         }
 
-        let message = format!("Undefined variable: '{}'", name.get_lexeme());
-        Err(LoxError::Runtime(ErrorInfo::from_token(name, message)))
+        Err(LoxError::undefined_variable(name.get_position(), &name.get_literal()))
     }
 }

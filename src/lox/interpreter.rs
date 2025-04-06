@@ -2,7 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use super::env::Environment;
 use crate::{
-    errors::{ErrorInfo, LoxError},
+    errors::LoxError,
     types::{
         expression::Expr,
         literal::Lit,
@@ -19,57 +19,59 @@ pub struct Interpreter {
 impl Visitor<Lit> for Interpreter {
     // --------------------- EXPRESSIONS ---------------------
     fn visit_unary_expr(&mut self, op: &Token, right: &Expr) -> Result<Lit, LoxError> {
-        let right_val = right.accept(self)?;
+        let value = right.accept(self)?;
         match op.get_type() {
-            TokenType::Minus => match right_val {
+            TokenType::Minus => match value {
                 Lit::Num(x) => Ok(Lit::Num(-x)),
-                _ => Err(LoxError::Runtime(unary_number_error(op, right_val))),
+                _ => Err(LoxError::unary_operand(op.get_position(), op.get_type(), &value)),
             },
-            TokenType::Bang => Ok(Lit::Bool(right_val.is_truthy())),
+            TokenType::Bang => Ok(Lit::Bool(value.is_truthy())),
             x => unreachable!("ENCOUNTERED INVALID UNARY OPERATOR: {x}",),
         }
     }
 
     fn visit_binary_expr(&mut self, left: &Expr, op: &Token, right: &Expr) -> Result<Lit, LoxError> {
-        let left_lit = left.accept(self)?;
-        let right_lit = right.accept(self)?;
+        let lval = left.accept(self)?;
+        let rval = right.accept(self)?;
+        let typ = op.get_type();
+        let pos = op.get_position();
 
         match op.get_type() {
-            TokenType::Minus => match (&left_lit, &right_lit) {
+            TokenType::Minus => match (&lval, &rval) {
                 (Lit::Num(l), Lit::Num(r)) => Ok(Lit::Num(l - r)),
-                _ => Err(LoxError::Runtime(binary_number_error(op, left_lit, right_lit))),
+                _ => Err(LoxError::binary_operands(pos, typ, &lval, &rval)),
             },
-            TokenType::Plus => match (&left_lit, &right_lit) {
+            TokenType::Plus => match (&lval, &rval) {
                 (Lit::Num(l), Lit::Num(r)) => Ok(Lit::Num(l + r)),
                 (Lit::Str(l), Lit::Str(r)) => Ok(Lit::Str(Rc::from(format!("{l}{r}")))),
-                _ => Err(LoxError::Runtime(plus_error(op, left_lit, right_lit))),
+                _ => Err(LoxError::plus_operands(pos, &lval, &rval)),
             },
-            TokenType::Slash => match (&left_lit, &right_lit) {
+            TokenType::Slash => match (&lval, &rval) {
                 (Lit::Num(l), Lit::Num(r)) => Ok(Lit::Num(l / r)),
-                _ => Err(LoxError::Runtime(binary_number_error(op, left_lit, right_lit))),
+                _ => Err(LoxError::binary_operands(pos, typ, &lval, &rval)),
             },
-            TokenType::Star => match (&left_lit, &right_lit) {
+            TokenType::Star => match (&lval, &rval) {
                 (Lit::Num(l), Lit::Num(r)) => Ok(Lit::Num(l * r)),
-                _ => Err(LoxError::Runtime(binary_number_error(op, left_lit, right_lit))),
+                _ => Err(LoxError::binary_operands(pos, typ, &lval, &rval)),
             },
-            TokenType::Gt => match (&left_lit, &right_lit) {
+            TokenType::Gt => match (&lval, &rval) {
                 (Lit::Num(l), Lit::Num(r)) => Ok(Lit::Bool(l > r)),
-                _ => Err(LoxError::Runtime(binary_number_error(op, left_lit, right_lit))),
+                _ => Err(LoxError::binary_operands(pos, typ, &lval, &rval)),
             },
-            TokenType::Geq => match (&left_lit, &right_lit) {
+            TokenType::Geq => match (&lval, &rval) {
                 (Lit::Num(l), Lit::Num(r)) => Ok(Lit::Bool(l >= r)),
-                _ => Err(LoxError::Runtime(binary_number_error(op, left_lit, right_lit))),
+                _ => Err(LoxError::binary_operands(pos, typ, &lval, &rval)),
             },
-            TokenType::Lt => match (&left_lit, &right_lit) {
+            TokenType::Lt => match (&lval, &rval) {
                 (Lit::Num(l), Lit::Num(r)) => Ok(Lit::Bool(l < r)),
-                _ => Err(LoxError::Runtime(binary_number_error(op, left_lit, right_lit))),
+                _ => Err(LoxError::binary_operands(pos, typ, &lval, &rval)),
             },
-            TokenType::Leq => match (&left_lit, &right_lit) {
+            TokenType::Leq => match (&lval, &rval) {
                 (Lit::Num(l), Lit::Num(r)) => Ok(Lit::Bool(l <= r)),
-                _ => Err(LoxError::Runtime(binary_number_error(op, left_lit, right_lit))),
+                _ => Err(LoxError::binary_operands(pos, typ, &lval, &rval)),
             },
-            TokenType::Eq => Ok(Lit::Bool(left_lit == right_lit)),
-            TokenType::Neq => Ok(Lit::Bool(left_lit != right_lit)),
+            TokenType::Eq => Ok(Lit::Bool(lval == rval)),
+            TokenType::Neq => Ok(Lit::Bool(lval != rval)),
             x => unreachable!("ENCOUNTERED INVALID BINARY OPERATOR: {x}"),
         }
     }
@@ -176,33 +178,12 @@ impl Interpreter {
         }
     }
 
-    pub fn interpret(&mut self, program: Vec<Stmt>) -> Result<(), LoxError> {
+    pub fn interpret(&mut self, program: Vec<Stmt>) -> Result<(), Vec<LoxError>> {
         for stmt in program.iter() {
-            stmt.accept(self)?;
+            if let Err(x) = stmt.accept(self) {
+                return Err(vec![x]);
+            }
         }
         Ok(())
     }
-}
-
-fn unary_number_error(op_token: &Token, right: Lit) -> ErrorInfo {
-    let lexeme = op_token.get_lexeme();
-    let msg = format!("Operand of '{}' must be a number; found {:?}", lexeme, right);
-    ErrorInfo::from_token(op_token, msg)
-}
-
-fn binary_number_error(op_token: &Token, left: Lit, right: Lit) -> ErrorInfo {
-    let lexeme = op_token.get_lexeme();
-    let msg = format!(
-        "Operands of '{}' must be numbers; found {:?} and {:?}",
-        lexeme, left, right
-    );
-    ErrorInfo::from_token(op_token, msg)
-}
-
-fn plus_error(op_token: &Token, left: Lit, right: Lit) -> ErrorInfo {
-    let msg = format!(
-        "Operands of '+' must be both strings or both numbers; found {:?} and {:?}",
-        left, right
-    );
-    ErrorInfo::from_token(op_token, msg)
 }
