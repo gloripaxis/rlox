@@ -2,11 +2,11 @@ use std::error::Error;
 use std::io::Write;
 use std::{fs, io, process};
 
+use compile::{interpreter::Interpreter, lexer::Lexer, parser::Parser};
 use errors::LoxError;
-use lox::{interpreter::Interpreter, lexer::Lexer, parser::Parser};
 
+mod compile;
 mod errors;
-mod lox;
 mod types;
 mod visitors;
 
