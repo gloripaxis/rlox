@@ -50,13 +50,3 @@ impl PartialEq<Lit> for Lit {
         }
     }
 }
-
-impl Lit {
-    pub fn is_truthy(&self) -> bool {
-        match self {
-            Lit::Nil => false,
-            Lit::Bool(x) => *x,
-            _ => true,
-        }
-    }
-}

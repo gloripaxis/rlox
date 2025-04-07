@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{fmt, rc::Rc};
 
 use super::{literal::Lit, position::Pos};
 
@@ -163,7 +163,7 @@ impl TokenType {
 #[derive(Clone)]
 pub struct Token {
     ttype: TokenType,
-    literal: Lit,
+    literal: Rc<Lit>,
     position: Pos,
 }
 
@@ -190,7 +190,7 @@ impl Token {
     pub fn new(ttype: TokenType, literal: Lit, position: Pos) -> Self {
         Self {
             ttype,
-            literal,
+            literal: Rc::new(literal),
             position,
         }
     }
@@ -199,12 +199,12 @@ impl Token {
         self.ttype
     }
 
-    pub fn get_literal(&self) -> Lit {
-        self.literal.clone()
+    pub fn get_literal(&self) -> Rc<Lit> {
+        Rc::clone(&self.literal)
     }
 
     pub fn get_lexeme(&self) -> String {
-        match self.literal {
+        match *self.literal {
             Lit::Nil => format!("{}", self.ttype),
             _ => format!("{}", self.literal),
         }

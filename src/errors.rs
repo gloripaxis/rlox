@@ -5,6 +5,7 @@ use crate::types::expression::Expr;
 use crate::types::literal::Lit;
 use crate::types::position::Pos;
 use crate::types::token::TokenType;
+use crate::types::value::Val;
 
 #[derive(Debug)]
 pub enum LoxError {
@@ -26,6 +27,7 @@ impl fmt::Display for LoxError {
 }
 
 impl LoxError {
+    // ParseErrors (Lexer)
     pub fn illegal_character(pos: Pos, c: char) -> Self {
         Self::Lexer(pos, format!("Encountered illegal character '{c}'"))
     }
@@ -38,6 +40,7 @@ impl LoxError {
         Self::Lexer(pos, format!("Invalid escape sequence '\\{c}'"))
     }
 
+    // SyntaxErrors (Parser)
     pub fn expected(pos: Pos, exp: &str, after: &str, at: &str) -> Self {
         Self::Syntax(pos, format!("Expected '{}' after {} at {}", exp, after, at))
     }
@@ -46,18 +49,19 @@ impl LoxError {
         Self::Syntax(pos, format!("Invalid assignment target: '{expr}'"))
     }
 
-    pub fn unary_operand(pos: Pos, op: TokenType, value: &Lit) -> Self {
+    // RuntimeErrors (Interpreter)
+    pub fn unary_operand(pos: Pos, op: TokenType, value: &Val) -> Self {
         Self::Runtime(pos, format!("Operand of '{}' must be a number; found {:?}", op, value))
     }
 
-    pub fn binary_operands(pos: Pos, op: TokenType, left: &Lit, right: &Lit) -> Self {
+    pub fn binary_operands(pos: Pos, op: TokenType, left: &Val, right: &Val) -> Self {
         Self::Runtime(
             pos,
             format!("Operands of '{}' must be numbers; found {:?} and {:?}", op, left, right),
         )
     }
 
-    pub fn plus_operands(pos: Pos, left: &Lit, right: &Lit) -> Self {
+    pub fn plus_operands(pos: Pos, left: &Val, right: &Val) -> Self {
         Self::Runtime(
             pos,
             format!(

@@ -5,9 +5,9 @@ use crate::{
     errors::LoxError,
     types::{
         expression::Expr,
-        literal::Lit,
         statement::Stmt,
         token::{Token, TokenType},
+        value::Val,
     },
     visitors::Visitor,
 };
@@ -16,21 +16,21 @@ pub struct Interpreter {
     env_stack: Vec<Rc<RefCell<Environment>>>,
 }
 
-impl Visitor<Lit> for Interpreter {
+impl Visitor<Val> for Interpreter {
     // --------------------- EXPRESSIONS ---------------------
-    fn visit_unary_expr(&mut self, op: &Token, right: &Expr) -> Result<Lit, LoxError> {
+    fn visit_unary_expr(&mut self, op: &Token, right: &Expr) -> Result<Val, LoxError> {
         let value = right.accept(self)?;
         match op.get_type() {
             TokenType::Minus => match value {
-                Lit::Num(x) => Ok(Lit::Num(-x)),
+                Val::Num(x) => Ok(Val::Num(-x)),
                 _ => Err(LoxError::unary_operand(op.get_position(), op.get_type(), &value)),
             },
-            TokenType::Bang => Ok(Lit::Bool(value.is_truthy())),
+            TokenType::Bang => Ok(Val::Bool(value.is_truthy())),
             x => unreachable!("ENCOUNTERED INVALID UNARY OPERATOR: {x}",),
         }
     }
 
-    fn visit_binary_expr(&mut self, left: &Expr, op: &Token, right: &Expr) -> Result<Lit, LoxError> {
+    fn visit_binary_expr(&mut self, left: &Expr, op: &Token, right: &Expr) -> Result<Val, LoxError> {
         let lval = left.accept(self)?;
         let rval = right.accept(self)?;
         let typ = op.get_type();
@@ -38,76 +38,80 @@ impl Visitor<Lit> for Interpreter {
 
         match op.get_type() {
             TokenType::Minus => match (&lval, &rval) {
-                (Lit::Num(l), Lit::Num(r)) => Ok(Lit::Num(l - r)),
+                (Val::Num(l), Val::Num(r)) => Ok(Val::Num(l - r)),
                 _ => Err(LoxError::binary_operands(pos, typ, &lval, &rval)),
             },
             TokenType::Plus => match (&lval, &rval) {
-                (Lit::Num(l), Lit::Num(r)) => Ok(Lit::Num(l + r)),
-                (Lit::Str(l), Lit::Str(r)) => Ok(Lit::Str(Rc::from(format!("{l}{r}")))),
+                (Val::Num(l), Val::Num(r)) => Ok(Val::Num(l + r)),
+                (Val::Str(l), Val::Str(r)) => Ok(Val::Str(Rc::from(format!("{l}{r}")))),
                 _ => Err(LoxError::plus_operands(pos, &lval, &rval)),
             },
             TokenType::Slash => match (&lval, &rval) {
-                (Lit::Num(l), Lit::Num(r)) => Ok(Lit::Num(l / r)),
+                (Val::Num(l), Val::Num(r)) => Ok(Val::Num(l / r)),
                 _ => Err(LoxError::binary_operands(pos, typ, &lval, &rval)),
             },
             TokenType::Star => match (&lval, &rval) {
-                (Lit::Num(l), Lit::Num(r)) => Ok(Lit::Num(l * r)),
+                (Val::Num(l), Val::Num(r)) => Ok(Val::Num(l * r)),
                 _ => Err(LoxError::binary_operands(pos, typ, &lval, &rval)),
             },
             TokenType::Gt => match (&lval, &rval) {
-                (Lit::Num(l), Lit::Num(r)) => Ok(Lit::Bool(l > r)),
+                (Val::Num(l), Val::Num(r)) => Ok(Val::Bool(l > r)),
                 _ => Err(LoxError::binary_operands(pos, typ, &lval, &rval)),
             },
             TokenType::Geq => match (&lval, &rval) {
-                (Lit::Num(l), Lit::Num(r)) => Ok(Lit::Bool(l >= r)),
+                (Val::Num(l), Val::Num(r)) => Ok(Val::Bool(l >= r)),
                 _ => Err(LoxError::binary_operands(pos, typ, &lval, &rval)),
             },
             TokenType::Lt => match (&lval, &rval) {
-                (Lit::Num(l), Lit::Num(r)) => Ok(Lit::Bool(l < r)),
+                (Val::Num(l), Val::Num(r)) => Ok(Val::Bool(l < r)),
                 _ => Err(LoxError::binary_operands(pos, typ, &lval, &rval)),
             },
             TokenType::Leq => match (&lval, &rval) {
-                (Lit::Num(l), Lit::Num(r)) => Ok(Lit::Bool(l <= r)),
+                (Val::Num(l), Val::Num(r)) => Ok(Val::Bool(l <= r)),
                 _ => Err(LoxError::binary_operands(pos, typ, &lval, &rval)),
             },
-            TokenType::Eq => Ok(Lit::Bool(lval == rval)),
-            TokenType::Neq => Ok(Lit::Bool(lval != rval)),
+            TokenType::Eq => Ok(Val::Bool(lval == rval)),
+            TokenType::Neq => Ok(Val::Bool(lval != rval)),
             x => unreachable!("ENCOUNTERED INVALID BINARY OPERATOR: {x}"),
         }
     }
 
-    fn visit_logic_expr(&mut self, left: &Expr, op: &Token, right: &Expr) -> Result<Lit, LoxError> {
+    fn visit_logic_expr(&mut self, left: &Expr, op: &Token, right: &Expr) -> Result<Val, LoxError> {
         let left_val = left.accept(self)?;
 
         // NOTE: Original implementation returned the literal value of the operand, not strictly true or false
         // I find that disgusting and so decided to strictly return true or false :)
         let truthy = left_val.is_truthy();
         match op.get_type() {
-            TokenType::Or if truthy => Ok(Lit::Bool(true)),
-            TokenType::And if !truthy => Ok(Lit::Bool(false)),
+            TokenType::Or if truthy => Ok(Val::Bool(true)),
+            TokenType::And if !truthy => Ok(Val::Bool(false)),
             _ => {
                 let val = right.accept(self)?;
-                Ok(Lit::Bool(val.is_truthy()))
+                Ok(Val::Bool(val.is_truthy()))
             }
         }
     }
 
-    fn visit_grouping_expr(&mut self, expr: &Expr) -> Result<Lit, LoxError> {
+    fn visit_grouping_expr(&mut self, expr: &Expr) -> Result<Val, LoxError> {
         expr.accept(self)
     }
 
-    fn visit_literal_expr(&mut self, value: &Token) -> Result<Lit, LoxError> {
-        Ok(value.get_literal())
+    fn visit_literal_expr(&mut self, value: &Token) -> Result<Val, LoxError> {
+        Ok(Val::from_literal(&value.get_literal()))
     }
 
-    fn visit_variable_expr(&mut self, name: &Token) -> Result<Lit, LoxError> {
+    fn visit_variable_expr(&mut self, name: &Token) -> Result<Val, LoxError> {
         self.env_stack.last().unwrap().borrow().get(name)
     }
 
-    fn visit_assign_expr(&mut self, name: &Token, right: &Expr) -> Result<Lit, LoxError> {
-        let lit = right.accept(self)?;
-        self.env_stack.last().unwrap().borrow_mut().assign(name, lit.clone())?;
-        Ok(lit)
+    fn visit_assign_expr(&mut self, name: &Token, right: &Expr) -> Result<Val, LoxError> {
+        let value = right.accept(self)?;
+        self.env_stack
+            .last()
+            .unwrap()
+            .borrow_mut()
+            .assign(name, value.clone())?;
+        Ok(value)
     }
 
     // --------------------- STATEMENTS ---------------------
@@ -117,15 +121,15 @@ impl Visitor<Lit> for Interpreter {
     }
 
     fn visit_print_stmt(&mut self, expr: &Expr) -> Result<(), LoxError> {
-        let lit = expr.accept(self)?;
-        println!("{lit}");
+        let value = expr.accept(self)?;
+        println!("{value}");
         Ok(())
     }
 
     fn visit_var_stmt(&mut self, name: &Token, init: &Option<Expr>) -> Result<(), LoxError> {
         let value = match init {
             Some(expr) => expr.accept(self)?,
-            None => Lit::Nil,
+            None => Val::Nil,
         };
         self.env_stack
             .last()

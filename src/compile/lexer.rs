@@ -249,9 +249,9 @@ mod tests {
         assert_eq!(tokens.len(), literals.len() + 1);
         for ((t, tt), l) in tokens.iter().zip(types).zip(literals) {
             assert_eq!(t.get_type(), *tt);
-            match (&l, &t.get_literal()) {
-                (Lit::Id(x), Lit::Id(y)) => assert_eq!(x, y),
-                _ => assert_eq!(*l, t.get_literal()),
+            match (l, t.get_literal().as_ref()) {
+                (Lit::Id(exp), Lit::Id(act)) => assert_eq!(exp.as_ref(), act.as_ref()),
+                _ => assert_eq!(l, t.get_literal().as_ref()),
             }
         }
         assert_eq!(tokens.last().unwrap().get_type(), TokenType::EndOfFile);

@@ -6,12 +6,12 @@ use std::{
 
 use crate::{
     errors::LoxError,
-    types::{literal::Lit, token::Token},
+    types::{token::Token, value::Val},
 };
 
 #[derive(Debug, Clone)]
 pub struct Environment {
-    env: HashMap<String, Lit>,
+    env: HashMap<String, Val>,
     parent: Option<Rc<RefCell<Environment>>>,
 }
 
@@ -23,11 +23,11 @@ impl Environment {
         }
     }
 
-    pub fn define(&mut self, name: String, value: Lit) {
+    pub fn define(&mut self, name: String, value: Val) {
         self.env.insert(name, value);
     }
 
-    pub fn assign(&mut self, name: &Token, value: Lit) -> Result<(), LoxError> {
+    pub fn assign(&mut self, name: &Token, value: Val) -> Result<(), LoxError> {
         if let Entry::Occupied(mut e) = self.env.entry(name.get_lexeme()) {
             e.insert(value);
             return Ok(());
@@ -40,7 +40,7 @@ impl Environment {
         Err(LoxError::undefined_variable(name.get_position(), &name.get_literal()))
     }
 
-    pub fn get(&self, name: &Token) -> Result<Lit, LoxError> {
+    pub fn get(&self, name: &Token) -> Result<Val, LoxError> {
         if self.env.contains_key(&name.get_lexeme()) {
             return Ok(self.env.get(&name.get_lexeme()).unwrap().to_owned());
         }
