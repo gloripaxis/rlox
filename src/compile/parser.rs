@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use crate::{
     errors::LoxError,
     types::{
@@ -9,7 +11,7 @@ use crate::{
 };
 
 pub struct Parser {
-    tokens: Vec<Token>,
+    tokens: Vec<Rc<Token>>,
     current: usize,
     program: Vec<Stmt>,
     errors: Vec<LoxError>,
@@ -17,8 +19,9 @@ pub struct Parser {
 
 impl Parser {
     pub fn new(tokens: Vec<Token>) -> Self {
+        let rc_tokens: Vec<Rc<Token>> = tokens.into_iter().map(Rc::new).collect();
         Self {
-            tokens,
+            tokens: rc_tokens,
             current: 0,
             program: vec![],
             errors: vec![],
@@ -56,7 +59,7 @@ impl Parser {
     }
 
     fn var_decl(&mut self) -> Result<Stmt, LoxError> {
-        let name = self.expect(TokenType::Identifier, "variable name", "'var'")?.clone();
+        let name = self.expect(TokenType::Identifier, "variable name", "'var'")?;
         let mut initializer: Option<Expr> = None;
         if self.advance_maybe(&[TokenType::Assign]) {
             let expr = self.expression()?;
@@ -167,7 +170,7 @@ impl Parser {
             Some(expr) => expr,
             None => {
                 let fake_token = Token::new(TokenType::True, Lit::Bool(true), self.peek().get_position());
-                Expr::Literal(fake_token)
+                Expr::Literal(Rc::new(fake_token))
             }
         };
 
@@ -210,7 +213,7 @@ impl Parser {
         let mut expr = self.and_expr()?;
 
         while self.advance_maybe(&[TokenType::Or]) {
-            let operator = self.previous().clone();
+            let operator = self.previous();
             let right = self.and_expr()?;
             expr = Expr::Logical(Box::new(expr), operator, Box::new(right));
         }
@@ -222,7 +225,7 @@ impl Parser {
         let mut expr = self.equality_expr()?;
 
         while self.advance_maybe(&[TokenType::And]) {
-            let operator = self.previous().clone();
+            let operator = self.previous();
             let right = self.equality_expr()?;
             expr = Expr::Logical(Box::new(expr), operator, Box::new(right));
         }
@@ -233,7 +236,7 @@ impl Parser {
     fn equality_expr(&mut self) -> Result<Expr, LoxError> {
         let mut expr: Expr = self.comparison_expr()?;
         while self.advance_maybe(&[TokenType::Neq, TokenType::Eq]) {
-            let token = self.previous().clone();
+            let token = self.previous();
             let right = self.comparison_expr()?;
             expr = Expr::Binary(Box::new(expr), token, Box::new(right));
         }
@@ -244,7 +247,7 @@ impl Parser {
         let mut expr = self.term_expr()?;
 
         while self.advance_maybe(&[TokenType::Gt, TokenType::Geq, TokenType::Lt, TokenType::Leq]) {
-            let token = self.previous().clone();
+            let token = self.previous();
             let right = self.term_expr()?;
             expr = Expr::Binary(Box::new(expr), token, Box::new(right));
         }
@@ -255,7 +258,7 @@ impl Parser {
         let mut expr = self.factor_expr()?;
 
         while self.advance_maybe(&[TokenType::Minus, TokenType::Plus]) {
-            let token = self.previous().clone();
+            let token = self.previous();
             let right = self.factor_expr()?;
             expr = Expr::Binary(Box::new(expr), token, Box::new(right));
         }
@@ -266,7 +269,7 @@ impl Parser {
         let mut expr = self.unary_expr()?;
 
         while self.advance_maybe(&[TokenType::Slash, TokenType::Star]) {
-            let token = self.previous().clone();
+            let token = self.previous();
             let right = self.unary_expr()?;
             expr = Expr::Binary(Box::new(expr), token, Box::new(right));
         }
@@ -275,7 +278,7 @@ impl Parser {
 
     fn unary_expr(&mut self) -> Result<Expr, LoxError> {
         if self.advance_maybe(&[TokenType::Bang, TokenType::Minus]) {
-            let token = self.previous().clone();
+            let token = self.previous();
             let right = self.unary_expr()?;
             return Ok(Expr::Unary(token, Box::new(right)));
         }
@@ -283,7 +286,7 @@ impl Parser {
     }
 
     fn primary_expr(&mut self) -> Result<Expr, LoxError> {
-        let token = self.peek().clone();
+        let token = self.peek();
         match token.get_type() {
             TokenType::False => {
                 self.advance();
@@ -340,7 +343,7 @@ impl Parser {
         }
     }
 
-    fn expect(&mut self, tt: TokenType, exp: &str, after: &str) -> Result<&Token, LoxError> {
+    fn expect(&mut self, tt: TokenType, exp: &str, after: &str) -> Result<Rc<Token>, LoxError> {
         if self.is_type(tt) {
             return Ok(self.advance());
         }
@@ -352,7 +355,7 @@ impl Parser {
         Err(LoxError::expected(pos, exp, after, &lexeme))
     }
 
-    fn advance(&mut self) -> &Token {
+    fn advance(&mut self) -> Rc<Token> {
         if !self.is_end() {
             self.current += 1;
         }
@@ -376,12 +379,12 @@ impl Parser {
         ttype == self.peek().get_type()
     }
 
-    fn peek(&self) -> &Token {
-        self.tokens.get(self.current).unwrap()
+    fn peek(&self) -> Rc<Token> {
+        Rc::clone(self.tokens.get(self.current).unwrap())
     }
 
-    fn previous(&self) -> &Token {
-        self.tokens.get(self.current - 1).unwrap()
+    fn previous(&self) -> Rc<Token> {
+        Rc::clone(self.tokens.get(self.current - 1).unwrap())
     }
 
     fn is_end(&self) -> bool {

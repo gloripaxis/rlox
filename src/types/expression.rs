@@ -1,16 +1,16 @@
-use std::fmt;
+use std::{fmt, rc::Rc};
 
 use crate::{errors::LoxError, types::token::Token, visitors::Visitor};
 
 #[derive(Debug, Clone)]
 pub enum Expr {
-    Binary(Box<Expr>, Token, Box<Expr>),
-    Logical(Box<Expr>, Token, Box<Expr>),
-    Unary(Token, Box<Expr>),
+    Binary(Box<Expr>, Rc<Token>, Box<Expr>),
+    Logical(Box<Expr>, Rc<Token>, Box<Expr>),
+    Unary(Rc<Token>, Box<Expr>),
     Grouping(Box<Expr>),
-    Literal(Token),
-    Variable(Token),
-    Assign(Token, Box<Expr>),
+    Literal(Rc<Token>),
+    Variable(Rc<Token>),
+    Assign(Rc<Token>, Box<Expr>),
 }
 
 impl Expr {

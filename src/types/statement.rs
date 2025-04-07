@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use super::expression::Expr;
 use crate::{errors::LoxError, types::token::Token, visitors::Visitor};
 
@@ -5,7 +7,7 @@ use crate::{errors::LoxError, types::token::Token, visitors::Visitor};
 pub enum Stmt {
     Expression(Expr),
     Print(Expr),
-    Var(Token, Option<Expr>),
+    Var(Rc<Token>, Option<Expr>),
     Block(Vec<Stmt>),
     If(Expr, Box<Stmt>, Option<Box<Stmt>>),
     While(Expr, Box<Stmt>),
