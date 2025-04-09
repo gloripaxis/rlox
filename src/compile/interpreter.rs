@@ -114,6 +114,27 @@ impl Visitor<Val> for Interpreter {
         Ok(value)
     }
 
+    fn visit_call_expr(&mut self, callee: &Expr, paren: &Token, args: &[Expr]) -> Result<Val, LoxError> {
+        let callee = callee.accept(self)?;
+        if let Val::Func(callable) = callee {
+            let mut arg_values: Vec<Val> = vec![];
+            for arg in args {
+                arg_values.push(arg.accept(self)?);
+            }
+            if arg_values.len() != callable.arity() {
+                return Err(LoxError::wrong_arity(
+                    paren.get_position(),
+                    &callable.name(),
+                    callable.arity(),
+                    arg_values.len(),
+                ));
+            }
+            Ok(callable.as_ref().call(self, arg_values))
+        } else {
+            Err(LoxError::not_callable(paren.get_position(), &callee))
+        }
+    }
+
     // --------------------- STATEMENTS ---------------------
     fn visit_expression_stmt(&mut self, expr: &Expr) -> Result<(), LoxError> {
         expr.accept(self)?;

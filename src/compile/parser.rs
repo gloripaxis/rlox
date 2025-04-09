@@ -282,7 +282,29 @@ impl Parser {
             let right = self.unary_expr()?;
             return Ok(Expr::Unary(token, Box::new(right)));
         }
-        self.primary_expr()
+        self.call_expr()
+    }
+
+    fn call_expr(&mut self) -> Result<Expr, LoxError> {
+        let mut expr = self.primary_expr()?;
+
+        while self.advance_maybe(&[TokenType::LeftParen]) {
+            let mut args: Vec<Expr> = vec![];
+            if !self.is_type(TokenType::RightParen) {
+                loop {
+                    args.push(self.expression()?);
+                    if args.len() >= 255 {
+                        return Err(LoxError::too_many_args(self.peek().get_position()));
+                    }
+                    if !self.advance_maybe(&[TokenType::Comma]) {
+                        break;
+                    }
+                }
+            }
+            let paren = self.expect(TokenType::RightParen, ")", "function call")?;
+            expr = Expr::Call(Box::new(expr), paren, args);
+        }
+        Ok(expr)
     }
 
     fn primary_expr(&mut self) -> Result<Expr, LoxError> {

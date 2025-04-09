@@ -11,6 +11,7 @@ pub enum Expr {
     Literal(Rc<Token>),
     Variable(Rc<Token>),
     Assign(Rc<Token>, Box<Expr>),
+    Call(Box<Expr>, Rc<Token>, Vec<Expr>),
 }
 
 impl Expr {
@@ -23,6 +24,7 @@ impl Expr {
             Expr::Variable(token) => visitor.visit_variable_expr(token),
             Expr::Assign(token, value) => visitor.visit_assign_expr(token, value),
             Expr::Logical(left, token, right) => visitor.visit_logic_expr(left, token, right),
+            Expr::Call(callee, paren, args) => visitor.visit_call_expr(callee, paren, args),
         }
     }
 }
@@ -37,6 +39,7 @@ impl fmt::Display for Expr {
             Expr::Literal(tok) => write!(f, "LiteralExpression({})", tok.get_literal()),
             Expr::Variable(tok) => write!(f, "VariableExpression({})", tok.get_lexeme()),
             Expr::Assign(tok, _) => write!(f, "AssignmentExpression({})", tok.get_lexeme()),
+            Expr::Call(callee, _, _) => write!(f, "FunctionCall({})", callee),
         }
     }
 }

@@ -1,6 +1,6 @@
 use std::{fmt, rc::Rc};
 
-use super::literal::Lit;
+use super::{callable::LoxCallable, literal::Lit};
 
 #[derive(Clone)]
 pub enum Val {
@@ -8,6 +8,7 @@ pub enum Val {
     Num(f64),
     Str(Rc<str>),
     Bool(bool),
+    Func(Rc<dyn LoxCallable>),
 }
 
 impl fmt::Debug for Val {
@@ -17,6 +18,7 @@ impl fmt::Debug for Val {
             Val::Num(x) => write!(f, "number ({})", x),
             Val::Str(x) => write!(f, "string \"{}\"", x),
             Val::Bool(x) => write!(f, "boolean ({})", x),
+            Val::Func(x) => write!(f, "function {}", x.name()),
         }
     }
 }
@@ -34,6 +36,7 @@ impl fmt::Display for Val {
             }
             Val::Str(x) => write!(f, "\"{}\"", x),
             Val::Bool(x) => write!(f, "{}", x),
+            Val::Func(x) => write!(f, "{}", x.name()),
         }
     }
 }

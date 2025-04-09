@@ -49,6 +49,10 @@ impl LoxError {
         Self::Syntax(pos, format!("Invalid assignment target: '{expr}'"))
     }
 
+    pub fn too_many_args(pos: Pos) -> Self {
+        Self::Syntax(pos, String::from("Function received more than 255 arguments"))
+    }
+
     // RuntimeErrors (Interpreter)
     pub fn unary_operand(pos: Pos, op: TokenType, value: &Val) -> Self {
         Self::Runtime(pos, format!("Operand of '{}' must be a number; found {:?}", op, value))
@@ -73,5 +77,16 @@ impl LoxError {
 
     pub fn undefined_variable(pos: Pos, name: &Lit) -> Self {
         Self::Runtime(pos, format!("Undefined variable '{}'", name))
+    }
+
+    pub fn not_callable(pos: Pos, callee: &Val) -> Self {
+        Self::Runtime(pos, format!("Can only call functions and classes; found {callee}"))
+    }
+
+    pub fn wrong_arity(pos: Pos, callee: &str, expected: usize, received: usize) -> Self {
+        Self::Runtime(
+            pos,
+            format!("Function {callee} expected {expected} arguments but got {received}"),
+        )
     }
 }
