@@ -2,6 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use super::env::Environment;
 use crate::{
+    builtins::{clock::ClockFunction, read::ReadFunction},
     errors::LoxError,
     types::{
         expression::Expr,
@@ -198,8 +199,15 @@ impl Visitor<Val> for Interpreter {
 
 impl Interpreter {
     pub fn new() -> Self {
+        let global_env = Rc::new(RefCell::new(Environment::new(None)));
+        global_env
+            .borrow_mut()
+            .define(String::from("clock"), Val::Func(Rc::new(ClockFunction::new())));
+        global_env
+            .borrow_mut()
+            .define(String::from("read"), Val::Func(Rc::new(ReadFunction::new())));
         Self {
-            env_stack: vec![Rc::new(RefCell::new(Environment::new(None)))],
+            env_stack: vec![global_env],
         }
     }
 

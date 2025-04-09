@@ -5,6 +5,7 @@ use std::{fs, io, process};
 use compile::{interpreter::Interpreter, lexer::Lexer, parser::Parser};
 use errors::LoxError;
 
+mod builtins;
 mod compile;
 mod errors;
 mod types;
