@@ -130,7 +130,7 @@ impl Visitor<Val> for Interpreter {
                     arg_values.len(),
                 ));
             }
-            Ok(callable.as_ref().call(self, arg_values))
+            callable.as_ref().call(self, arg_values)
         } else {
             Err(LoxError::not_callable(paren.get_position(), &callee))
         }

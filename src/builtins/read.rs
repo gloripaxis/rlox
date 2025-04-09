@@ -2,6 +2,7 @@ use std::{io, rc::Rc};
 
 use crate::{
     compile::interpreter::Interpreter,
+    errors::LoxError,
     types::{callable::LoxCallable, value::Val},
 };
 
@@ -13,10 +14,10 @@ impl LoxCallable for ReadFunction {
         0
     }
 
-    fn call(&self, _: &Interpreter, _: Vec<Val>) -> Val {
+    fn call(&self, _: &mut Interpreter, _: Vec<Val>) -> Result<Val, LoxError> {
         let mut input = String::from("");
         io::stdin().read_line(&mut input).unwrap();
-        Val::Str(Rc::from((input[..input.len() - 1]).to_string()))
+        Ok(Val::Str(Rc::from((input[..input.len() - 1]).to_string())))
     }
 
     fn name(&self) -> String {

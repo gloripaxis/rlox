@@ -2,6 +2,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::{
     compile::interpreter::Interpreter,
+    errors::LoxError,
     types::{callable::LoxCallable, value::Val},
 };
 
@@ -13,8 +14,10 @@ impl LoxCallable for ClockFunction {
         0
     }
 
-    fn call(&self, _: &Interpreter, _: Vec<Val>) -> Val {
-        Val::Num(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs_f64())
+    fn call(&self, _: &mut Interpreter, _: Vec<Val>) -> Result<Val, LoxError> {
+        Ok(Val::Num(
+            SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs_f64(),
+        ))
     }
 
     fn name(&self) -> String {
