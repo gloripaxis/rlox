@@ -2,7 +2,6 @@ use std::{cell::RefCell, rc::Rc};
 
 use super::env::Environment;
 use crate::{
-    builtins::{clock::ClockFunction, read::ReadFunction},
     errors::LoxError,
     types::{
         callable::LoxFunction,
@@ -15,7 +14,8 @@ use crate::{
 };
 
 pub struct Interpreter {
-    env_stack: Vec<Rc<RefCell<Environment>>>,
+    globals: Rc<RefCell<Environment>>,
+    environment: Rc<RefCell<Environment>>,
 }
 
 impl Visitor<Val> for Interpreter {
@@ -103,16 +103,12 @@ impl Visitor<Val> for Interpreter {
     }
 
     fn visit_variable_expr(&mut self, name: &Token) -> Result<Val, LoxError> {
-        self.env_stack.last().unwrap().borrow().get(name)
+        self.environment.borrow().get(name)
     }
 
     fn visit_assign_expr(&mut self, name: &Token, right: &Expr) -> Result<Val, LoxError> {
         let value = right.accept(self)?;
-        self.env_stack
-            .last()
-            .unwrap()
-            .borrow_mut()
-            .assign(name, value.clone())?;
+        self.environment.borrow_mut().assign(name, value.clone())?;
         Ok(value)
     }
 
@@ -154,16 +150,12 @@ impl Visitor<Val> for Interpreter {
             Some(expr) => expr.accept(self)?,
             None => Val::Nil,
         };
-        self.env_stack
-            .last()
-            .unwrap()
-            .borrow_mut()
-            .define(name.get_lexeme(), value);
+        self.environment.borrow_mut().define(name.get_lexeme(), value);
         Ok(())
     }
 
     fn visit_block_stmt(&mut self, statements: &[Rc<Stmt>]) -> Result<(), LoxError> {
-        let new_env = Environment::new(Some(Rc::clone(self.env_stack.last().unwrap())));
+        let new_env = Environment::new(Some(Rc::clone(&self.environment)));
         self.execute_block(statements, new_env)
     }
 
@@ -196,9 +188,7 @@ impl Visitor<Val> for Interpreter {
         let vec_params: Vec<Rc<Token>> = params.iter().map(Rc::clone).collect();
         let vec_body: Vec<Rc<Stmt>> = body.iter().map(Rc::clone).collect();
         let func = LoxFunction::new(Rc::clone(&name), vec_params, vec_body);
-        self.env_stack
-            .last()
-            .unwrap()
+        self.environment
             .borrow_mut()
             .define(name.get_lexeme(), Val::Func(Rc::new(func)));
         Ok(())
@@ -215,15 +205,10 @@ impl Visitor<Val> for Interpreter {
 
 impl Interpreter {
     pub fn new() -> Self {
-        let global_env = Rc::new(RefCell::new(Environment::new(None)));
-        global_env
-            .borrow_mut()
-            .define(String::from("clock"), Val::Func(Rc::new(ClockFunction::new())));
-        global_env
-            .borrow_mut()
-            .define(String::from("read"), Val::Func(Rc::new(ReadFunction::new())));
+        let global_env = Rc::new(RefCell::new(Environment::global()));
         Self {
-            env_stack: vec![global_env],
+            globals: Rc::clone(&global_env),
+            environment: Rc::clone(&global_env),
         }
     }
 
@@ -237,20 +222,21 @@ impl Interpreter {
     }
 
     pub fn execute_block(&mut self, statements: &[Rc<Stmt>], env: Environment) -> Result<(), LoxError> {
-        self.env_stack.push(Rc::new(RefCell::new(env)));
+        let prev_env = Rc::clone(&self.environment);
+        self.environment = Rc::new(RefCell::new(env));
 
         for stmt in statements.iter() {
             let result = stmt.accept(self);
             if let Err(x) = result {
-                self.env_stack.pop();
+                self.environment = prev_env;
                 return Err(x);
             }
         }
-        self.env_stack.pop();
+        self.environment = prev_env;
         Ok(())
     }
 
     pub fn get_global_env(&self) -> Rc<RefCell<Environment>> {
-        Rc::clone(self.env_stack.first().unwrap())
+        Rc::clone(&self.globals)
     }
 }

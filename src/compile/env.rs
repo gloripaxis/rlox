@@ -5,6 +5,7 @@ use std::{
 };
 
 use crate::{
+    builtins::{clock::ClockFunction, read::ReadFunction},
     errors::LoxError,
     types::{token::Token, value::Val},
 };
@@ -16,6 +17,13 @@ pub struct Environment {
 }
 
 impl Environment {
+    pub fn global() -> Self {
+        let mut env = Self::new(None);
+        env.define(String::from("clock"), Val::Func(Rc::new(ClockFunction::new())));
+        env.define(String::from("read"), Val::Func(Rc::new(ReadFunction::new())));
+        env
+    }
+
     pub fn new(parent: Option<Rc<RefCell<Environment>>>) -> Self {
         Self {
             env: HashMap::new(),
