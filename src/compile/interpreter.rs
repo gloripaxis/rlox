@@ -149,7 +149,7 @@ impl Visitor<Val> for Interpreter {
         Ok(())
     }
 
-    fn visit_var_stmt(&mut self, name: &Token, init: &Option<Expr>) -> Result<(), LoxError> {
+    fn visit_var_stmt(&mut self, name: &Token, init: &Option<Rc<Expr>>) -> Result<(), LoxError> {
         let value = match init {
             Some(expr) => expr.accept(self)?,
             None => Val::Nil,
@@ -162,12 +162,12 @@ impl Visitor<Val> for Interpreter {
         Ok(())
     }
 
-    fn visit_block_stmt(&mut self, statements: &[Stmt]) -> Result<(), LoxError> {
+    fn visit_block_stmt(&mut self, statements: &[Rc<Stmt>]) -> Result<(), LoxError> {
         let new_env = Environment::new(Some(Rc::clone(self.env_stack.last().unwrap())));
         self.execute_block(statements, new_env)
     }
 
-    fn visit_if_stmt(&mut self, cond: &Expr, b_then: &Stmt, b_else: &Option<Box<Stmt>>) -> Result<(), LoxError> {
+    fn visit_if_stmt(&mut self, cond: &Expr, b_then: &Stmt, b_else: &Option<Rc<Stmt>>) -> Result<(), LoxError> {
         let value = cond.accept(self)?;
         match value.is_truthy() {
             true => b_then.accept(self)?,
@@ -187,9 +187,15 @@ impl Visitor<Val> for Interpreter {
         Ok(())
     }
 
-    fn visit_function_stmt(&mut self, name: Rc<Token>, params: &[Rc<Token>], body: Vec<Stmt>) -> Result<(), LoxError> {
+    fn visit_function_stmt(
+        &mut self,
+        name: Rc<Token>,
+        params: &[Rc<Token>],
+        body: &[Rc<Stmt>],
+    ) -> Result<(), LoxError> {
         let vec_params: Vec<Rc<Token>> = params.iter().map(Rc::clone).collect();
-        let func = LoxFunction::new(Rc::clone(&name), vec_params, body);
+        let vec_body: Vec<Rc<Stmt>> = body.iter().map(Rc::clone).collect();
+        let func = LoxFunction::new(Rc::clone(&name), vec_params, vec_body);
         self.env_stack
             .last()
             .unwrap()
@@ -213,7 +219,7 @@ impl Interpreter {
         }
     }
 
-    pub fn interpret(&mut self, program: Vec<Stmt>) -> Result<(), Vec<LoxError>> {
+    pub fn interpret(&mut self, program: Vec<Rc<Stmt>>) -> Result<(), Vec<LoxError>> {
         for stmt in program.iter() {
             if let Err(x) = stmt.accept(self) {
                 return Err(vec![x]);
@@ -222,7 +228,7 @@ impl Interpreter {
         Ok(())
     }
 
-    pub fn execute_block(&mut self, statements: &[Stmt], env: Environment) -> Result<(), LoxError> {
+    pub fn execute_block(&mut self, statements: &[Rc<Stmt>], env: Environment) -> Result<(), LoxError> {
         self.env_stack.push(Rc::new(RefCell::new(env)));
 
         for stmt in statements.iter() {

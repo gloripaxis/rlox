@@ -17,9 +17,10 @@ pub trait Visitor<T> {
 
     fn visit_expression_stmt(&mut self, expr: &Expr) -> Result<(), LoxError>;
     fn visit_print_stmt(&mut self, expr: &Expr) -> Result<(), LoxError>;
-    fn visit_var_stmt(&mut self, name: &Token, init: &Option<Expr>) -> Result<(), LoxError>;
-    fn visit_block_stmt(&mut self, statements: &[Stmt]) -> Result<(), LoxError>;
-    fn visit_if_stmt(&mut self, cond: &Expr, b_then: &Stmt, b_else: &Option<Box<Stmt>>) -> Result<(), LoxError>;
+    fn visit_var_stmt(&mut self, name: &Token, init: &Option<Rc<Expr>>) -> Result<(), LoxError>;
+    fn visit_block_stmt(&mut self, statements: &[Rc<Stmt>]) -> Result<(), LoxError>;
+    fn visit_if_stmt(&mut self, cond: &Expr, b_then: &Stmt, b_else: &Option<Rc<Stmt>>) -> Result<(), LoxError>;
     fn visit_while_stmt(&mut self, cond: &Expr, stmt: &Stmt) -> Result<(), LoxError>;
-    fn visit_function_stmt(&mut self, name: Rc<Token>, params: &[Rc<Token>], body: Vec<Stmt>) -> Result<(), LoxError>;
+    fn visit_function_stmt(&mut self, name: Rc<Token>, params: &[Rc<Token>], body: &[Rc<Stmt>])
+    -> Result<(), LoxError>;
 }

@@ -4,14 +4,14 @@ use crate::{errors::LoxError, types::token::Token, visitors::Visitor};
 
 #[derive(Debug, Clone)]
 pub enum Expr {
-    Binary(Box<Expr>, Rc<Token>, Box<Expr>),
-    Logical(Box<Expr>, Rc<Token>, Box<Expr>),
-    Unary(Rc<Token>, Box<Expr>),
-    Grouping(Box<Expr>),
+    Binary(Rc<Expr>, Rc<Token>, Rc<Expr>),
+    Logical(Rc<Expr>, Rc<Token>, Rc<Expr>),
+    Unary(Rc<Token>, Rc<Expr>),
+    Grouping(Rc<Expr>),
     Literal(Rc<Token>),
     Variable(Rc<Token>),
-    Assign(Rc<Token>, Box<Expr>),
-    Call(Box<Expr>, Rc<Token>, Vec<Expr>),
+    Assign(Rc<Token>, Rc<Expr>),
+    Call(Rc<Expr>, Rc<Token>, Vec<Expr>),
 }
 
 impl Expr {

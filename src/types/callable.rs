@@ -17,11 +17,11 @@ pub trait LoxCallable: Debug {
 pub struct LoxFunction {
     name: Rc<Token>,
     params: Vec<Rc<Token>>,
-    body: Vec<Stmt>,
+    body: Vec<Rc<Stmt>>,
 }
 
 impl LoxFunction {
-    pub fn new(name: Rc<Token>, params: Vec<Rc<Token>>, body: Vec<Stmt>) -> Self {
+    pub fn new(name: Rc<Token>, params: Vec<Rc<Token>>, body: Vec<Rc<Stmt>>) -> Self {
         Self { name, params, body }
     }
 }

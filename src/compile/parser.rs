@@ -13,7 +13,7 @@ use crate::{
 pub struct Parser {
     tokens: Vec<Rc<Token>>,
     current: usize,
-    program: Vec<Stmt>,
+    program: Vec<Rc<Stmt>>,
     errors: Vec<LoxError>,
 }
 
@@ -28,11 +28,11 @@ impl Parser {
         }
     }
 
-    pub fn parse(mut self) -> Result<Vec<Stmt>, Vec<LoxError>> {
+    pub fn parse(mut self) -> Result<Vec<Rc<Stmt>>, Vec<LoxError>> {
         while !self.is_end() {
             let result = self.declaration();
             match result {
-                Ok(statement) => self.program.push(statement),
+                Ok(statement) => self.program.push(Rc::new(statement)),
                 Err(einfo) => self.errors.push(einfo),
             }
         }
@@ -96,15 +96,15 @@ impl Parser {
         let body = self.block_stmt()?;
 
         // Return function statement
-        Ok(Stmt::Function(Rc::clone(&name), params, vec![body]))
+        Ok(Stmt::Function(Rc::clone(&name), params, vec![Rc::new(body)]))
     }
 
     fn var_decl(&mut self) -> Result<Stmt, LoxError> {
         let name = self.expect(TokenType::Identifier, "variable name", "'var'")?;
-        let mut initializer: Option<Expr> = None;
+        let mut initializer: Option<Rc<Expr>> = None;
         if self.advance_maybe(&[TokenType::Assign]) {
             let expr = self.expression()?;
-            initializer = Some(expr);
+            initializer = Some(Rc::new(expr));
         }
         self.expect(TokenType::Semicolon, ";", "variable declaration")?;
         Ok(Stmt::Var(name, initializer))
@@ -132,14 +132,14 @@ impl Parser {
     fn print_stmt(&mut self) -> Result<Stmt, LoxError> {
         let expr = self.expression()?;
         self.expect(TokenType::Semicolon, ";", "a print statement")?;
-        Ok(Stmt::Print(expr))
+        Ok(Stmt::Print(Rc::new(expr)))
     }
 
     fn block_stmt(&mut self) -> Result<Stmt, LoxError> {
-        let mut statements: Vec<Stmt> = vec![];
+        let mut statements: Vec<Rc<Stmt>> = vec![];
         while !self.is_type(TokenType::RightBrace) && !self.is_end() {
             let stmt = self.declaration()?;
-            statements.push(stmt);
+            statements.push(Rc::new(stmt));
         }
         self.expect(TokenType::RightBrace, "}", "block")?;
         Ok(Stmt::Block(statements))
@@ -154,12 +154,12 @@ impl Parser {
         let else_branch = match self.advance_maybe(&[TokenType::Else]) {
             true => {
                 let else_stmt = self.statement()?;
-                Some(Box::new(else_stmt))
+                Some(Rc::new(else_stmt))
             }
             false => None,
         };
 
-        Ok(Stmt::If(condition, Box::new(then_branch), else_branch))
+        Ok(Stmt::If(Rc::new(condition), Rc::new(then_branch), else_branch))
     }
 
     fn while_stmt(&mut self) -> Result<Stmt, LoxError> {
@@ -167,7 +167,7 @@ impl Parser {
         let condition = self.expression()?;
         self.expect(TokenType::RightParen, ")", "'while' condition")?;
         let stmts = self.statement()?;
-        Ok(Stmt::While(condition, Box::new(stmts)))
+        Ok(Stmt::While(Rc::new(condition), Rc::new(stmts)))
     }
 
     fn for_stmt(&mut self) -> Result<Stmt, LoxError> {
@@ -203,7 +203,7 @@ impl Parser {
         // if it exists, add the increment to the end of the while-body
         let body = match orig_inc {
             None => orig_body,
-            Some(inc) => Stmt::Block(vec![orig_body, Stmt::Expression(inc)]),
+            Some(inc) => Stmt::Block(vec![Rc::new(orig_body), Rc::new(Stmt::Expression(Rc::new(inc)))]),
         };
 
         // if not explicitly provided, set the condition to perma-true
@@ -217,8 +217,8 @@ impl Parser {
 
         // if it exists, add the initializer before the while-body
         let result = match orig_init {
-            None => Stmt::While(cond, Box::new(body)),
-            Some(init) => Stmt::Block(vec![init, Stmt::While(cond, Box::new(body))]),
+            None => Stmt::While(Rc::new(cond), Rc::new(body)),
+            Some(init) => Stmt::Block(vec![Rc::new(init), Rc::new(Stmt::While(Rc::new(cond), Rc::new(body)))]),
         };
         Ok(result)
     }
@@ -226,7 +226,7 @@ impl Parser {
     fn expr_stmt(&mut self) -> Result<Stmt, LoxError> {
         let expr = self.expression()?;
         self.expect(TokenType::Semicolon, ";", "an expression statement")?;
-        Ok(Stmt::Expression(expr))
+        Ok(Stmt::Expression(Rc::new(expr)))
     }
 
     fn expression(&mut self) -> Result<Expr, LoxError> {
@@ -241,7 +241,7 @@ impl Parser {
             return match expr {
                 Expr::Variable(name) => {
                     let value = self.assign_expr()?;
-                    Ok(Expr::Assign(name, Box::new(value)))
+                    Ok(Expr::Assign(name, Rc::new(value)))
                 }
                 _ => Err(LoxError::invalid_assignment(eq_token.get_position(), &expr)),
             };
@@ -256,7 +256,7 @@ impl Parser {
         while self.advance_maybe(&[TokenType::Or]) {
             let operator = self.previous();
             let right = self.and_expr()?;
-            expr = Expr::Logical(Box::new(expr), operator, Box::new(right));
+            expr = Expr::Logical(Rc::new(expr), operator, Rc::new(right));
         }
 
         Ok(expr)
@@ -268,7 +268,7 @@ impl Parser {
         while self.advance_maybe(&[TokenType::And]) {
             let operator = self.previous();
             let right = self.equality_expr()?;
-            expr = Expr::Logical(Box::new(expr), operator, Box::new(right));
+            expr = Expr::Logical(Rc::new(expr), operator, Rc::new(right));
         }
 
         Ok(expr)
@@ -279,7 +279,7 @@ impl Parser {
         while self.advance_maybe(&[TokenType::Neq, TokenType::Eq]) {
             let token = self.previous();
             let right = self.comparison_expr()?;
-            expr = Expr::Binary(Box::new(expr), token, Box::new(right));
+            expr = Expr::Binary(Rc::new(expr), token, Rc::new(right));
         }
         Ok(expr)
     }
@@ -290,7 +290,7 @@ impl Parser {
         while self.advance_maybe(&[TokenType::Gt, TokenType::Geq, TokenType::Lt, TokenType::Leq]) {
             let token = self.previous();
             let right = self.term_expr()?;
-            expr = Expr::Binary(Box::new(expr), token, Box::new(right));
+            expr = Expr::Binary(Rc::new(expr), token, Rc::new(right));
         }
         Ok(expr)
     }
@@ -301,7 +301,7 @@ impl Parser {
         while self.advance_maybe(&[TokenType::Minus, TokenType::Plus]) {
             let token = self.previous();
             let right = self.factor_expr()?;
-            expr = Expr::Binary(Box::new(expr), token, Box::new(right));
+            expr = Expr::Binary(Rc::new(expr), token, Rc::new(right));
         }
         Ok(expr)
     }
@@ -312,7 +312,7 @@ impl Parser {
         while self.advance_maybe(&[TokenType::Slash, TokenType::Star]) {
             let token = self.previous();
             let right = self.unary_expr()?;
-            expr = Expr::Binary(Box::new(expr), token, Box::new(right));
+            expr = Expr::Binary(Rc::new(expr), token, Rc::new(right));
         }
         Ok(expr)
     }
@@ -321,7 +321,7 @@ impl Parser {
         if self.advance_maybe(&[TokenType::Bang, TokenType::Minus]) {
             let token = self.previous();
             let right = self.unary_expr()?;
-            return Ok(Expr::Unary(token, Box::new(right)));
+            return Ok(Expr::Unary(token, Rc::new(right)));
         }
         self.call_expr()
     }
@@ -343,7 +343,7 @@ impl Parser {
                 }
             }
             let paren = self.expect(TokenType::RightParen, ")", "function call")?;
-            expr = Expr::Call(Box::new(expr), paren, args);
+            expr = Expr::Call(Rc::new(expr), paren, args);
         }
         Ok(expr)
     }
@@ -375,7 +375,7 @@ impl Parser {
                 self.advance();
                 let expr = self.expression()?;
                 self.expect(TokenType::RightParen, ")", "grouping expression")?;
-                Ok(Expr::Grouping(Box::new(expr)))
+                Ok(Expr::Grouping(Rc::new(expr)))
             }
             _ => {
                 let message = format!("Expected expression at '{}'", self.peek().get_lexeme());
