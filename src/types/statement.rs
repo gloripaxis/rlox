@@ -11,6 +11,7 @@ pub enum Stmt {
     Block(Vec<Stmt>),
     If(Expr, Box<Stmt>, Option<Box<Stmt>>),
     While(Expr, Box<Stmt>),
+    Function(Rc<Token>, Vec<Rc<Token>>, Vec<Stmt>),
 }
 
 impl Stmt {
@@ -22,6 +23,7 @@ impl Stmt {
             Stmt::Block(stmts) => visitor.visit_block_stmt(stmts),
             Stmt::If(cond, br_then, br_else) => visitor.visit_if_stmt(cond, br_then, br_else),
             Stmt::While(cond, stmt) => visitor.visit_while_stmt(cond, stmt),
+            Stmt::Function(name, params, body) => visitor.visit_function_stmt(Rc::clone(name), params, body.clone()),
         }
     }
 }

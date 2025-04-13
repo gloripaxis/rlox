@@ -34,7 +34,7 @@ impl fmt::Display for Val {
                     write!(f, "{}", x)
                 }
             }
-            Val::Str(x) => write!(f, "\"{}\"", x),
+            Val::Str(x) => write!(f, "{}", x),
             Val::Bool(x) => write!(f, "{}", x),
             Val::Func(x) => write!(f, "{}", x.name()),
         }

@@ -5,6 +5,7 @@ use crate::{
     builtins::{clock::ClockFunction, read::ReadFunction},
     errors::LoxError,
     types::{
+        callable::LoxFunction,
         expression::Expr,
         statement::Stmt,
         token::{Token, TokenType},
@@ -163,17 +164,7 @@ impl Visitor<Val> for Interpreter {
 
     fn visit_block_stmt(&mut self, statements: &[Stmt]) -> Result<(), LoxError> {
         let new_env = Environment::new(Some(Rc::clone(self.env_stack.last().unwrap())));
-        self.env_stack.push(Rc::new(RefCell::new(new_env)));
-
-        for stmt in statements.iter() {
-            let result = stmt.accept(self);
-            if let Err(x) = result {
-                self.env_stack.pop();
-                return Err(x);
-            }
-        }
-        self.env_stack.pop();
-        Ok(())
+        self.execute_block(statements, new_env)
     }
 
     fn visit_if_stmt(&mut self, cond: &Expr, b_then: &Stmt, b_else: &Option<Box<Stmt>>) -> Result<(), LoxError> {
@@ -193,6 +184,17 @@ impl Visitor<Val> for Interpreter {
         while cond.accept(self)?.is_truthy() {
             stmt.accept(self)?;
         }
+        Ok(())
+    }
+
+    fn visit_function_stmt(&mut self, name: Rc<Token>, params: &[Rc<Token>], body: Vec<Stmt>) -> Result<(), LoxError> {
+        let vec_params: Vec<Rc<Token>> = params.iter().map(Rc::clone).collect();
+        let func = LoxFunction::new(Rc::clone(&name), vec_params, body);
+        self.env_stack
+            .last()
+            .unwrap()
+            .borrow_mut()
+            .define(name.get_lexeme(), Val::Func(Rc::new(func)));
         Ok(())
     }
 }
@@ -218,5 +220,23 @@ impl Interpreter {
             }
         }
         Ok(())
+    }
+
+    pub fn execute_block(&mut self, statements: &[Stmt], env: Environment) -> Result<(), LoxError> {
+        self.env_stack.push(Rc::new(RefCell::new(env)));
+
+        for stmt in statements.iter() {
+            let result = stmt.accept(self);
+            if let Err(x) = result {
+                self.env_stack.pop();
+                return Err(x);
+            }
+        }
+        self.env_stack.pop();
+        Ok(())
+    }
+
+    pub fn get_global_env(&self) -> Rc<RefCell<Environment>> {
+        Rc::clone(self.env_stack.first().unwrap())
     }
 }

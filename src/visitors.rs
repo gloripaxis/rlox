@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use crate::{
     errors::LoxError,
     types::{expression::Expr, statement::Stmt, token::Token},
@@ -19,4 +21,5 @@ pub trait Visitor<T> {
     fn visit_block_stmt(&mut self, statements: &[Stmt]) -> Result<(), LoxError>;
     fn visit_if_stmt(&mut self, cond: &Expr, b_then: &Stmt, b_else: &Option<Box<Stmt>>) -> Result<(), LoxError>;
     fn visit_while_stmt(&mut self, cond: &Expr, stmt: &Stmt) -> Result<(), LoxError>;
+    fn visit_function_stmt(&mut self, name: Rc<Token>, params: &[Rc<Token>], body: Vec<Stmt>) -> Result<(), LoxError>;
 }

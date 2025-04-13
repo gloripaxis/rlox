@@ -53,6 +53,10 @@ impl LoxError {
         Self::Syntax(pos, String::from("Function received more than 255 arguments"))
     }
 
+    pub fn too_many_params(pos: Pos) -> Self {
+        Self::Syntax(pos, String::from("Function defined with more than 255 parameters"))
+    }
+
     // RuntimeErrors (Interpreter)
     pub fn unary_operand(pos: Pos, op: TokenType, value: &Val) -> Self {
         Self::Runtime(pos, format!("Operand of '{}' must be a number; found {:?}", op, value))

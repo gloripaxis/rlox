@@ -45,10 +45,14 @@ impl Parser {
     }
 
     fn declaration(&mut self) -> Result<Stmt, LoxError> {
-        let result = match self.advance_maybe(&[TokenType::Var]) {
-            true => self.var_decl(),
-            false => self.statement(),
+        let result = if self.advance_maybe(&[TokenType::Fun]) {
+            self.fun_decl("function")
+        } else if self.advance_maybe(&[TokenType::Var]) {
+            self.var_decl()
+        } else {
+            self.statement()
         };
+
         match result {
             Ok(x) => Ok(x),
             Err(x) => {
@@ -56,6 +60,43 @@ impl Parser {
                 Err(x)
             }
         }
+    }
+
+    fn fun_decl(&mut self, kind: &'static str) -> Result<Stmt, LoxError> {
+        // Read function name
+        let name = self.expect(TokenType::Identifier, &format!("{kind} name"), &format!("'{kind}'"))?;
+
+        // Read opening parenthesis
+        self.expect(TokenType::LeftParen, "(", &format!("{kind} name"))?;
+
+        // Read parameters
+        let mut params: Vec<Rc<Token>> = vec![];
+        if !self.is_type(TokenType::RightParen) {
+            loop {
+                if params.len() >= 255 {
+                    return Err(LoxError::too_many_params(self.peek().get_position()));
+                }
+                let id = self.expect(
+                    TokenType::Identifier,
+                    "parameter name",
+                    "opening ( of function parameter list",
+                )?;
+                params.push(id);
+                if !self.advance_maybe(&[TokenType::Comma]) {
+                    break;
+                }
+            }
+        }
+
+        // Read closing parenthesis
+        self.expect(TokenType::RightParen, ")", "function parameter list")?;
+
+        // Read function body
+        self.expect(TokenType::LeftBrace, "{", "function signature")?;
+        let body = self.block_stmt()?;
+
+        // Return function statement
+        Ok(Stmt::Function(Rc::clone(&name), params, vec![body]))
     }
 
     fn var_decl(&mut self) -> Result<Stmt, LoxError> {
