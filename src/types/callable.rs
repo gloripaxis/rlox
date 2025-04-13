@@ -36,8 +36,14 @@ impl LoxCallable for LoxFunction {
         for (param, arg) in self.params.iter().zip(args) {
             env.define(param.get_lexeme(), arg);
         }
-        interpreter.execute_block(&self.body, env)?;
-        Ok(Val::Nil)
+        let result = interpreter.execute_block(&self.body, env);
+        match result {
+            Ok(_) => Ok(Val::Nil),
+            Err(x) => match x {
+                LoxError::Return(val) => Ok(val),
+                e => Err(e),
+            },
+        }
     }
 
     fn name(&self) -> String {

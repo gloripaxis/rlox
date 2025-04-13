@@ -12,6 +12,7 @@ pub enum LoxError {
     Lexer(Pos, String),
     Syntax(Pos, String),
     Runtime(Pos, String),
+    Return(Val),
 }
 
 impl Error for LoxError {}
@@ -22,6 +23,7 @@ impl fmt::Display for LoxError {
             LoxError::Lexer(pos, msg) => write!(f, "ParseError at {pos}: {msg}"),
             LoxError::Syntax(pos, msg) => write!(f, "SyntaxError at {pos}: {msg}"),
             LoxError::Runtime(pos, msg) => write!(f, "Runtime Error at {pos}: {msg}"),
+            LoxError::Return(val) => write!(f, "{}", val),
         }
     }
 }

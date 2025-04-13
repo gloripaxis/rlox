@@ -203,6 +203,14 @@ impl Visitor<Val> for Interpreter {
             .define(name.get_lexeme(), Val::Func(Rc::new(func)));
         Ok(())
     }
+
+    fn visit_return_stmt(&mut self, _: Rc<Token>, expr: &Option<Rc<Expr>>) -> Result<(), LoxError> {
+        let value = match expr {
+            Some(ex) => ex.accept(self)?,
+            None => Val::Nil,
+        };
+        Err(LoxError::Return(value))
+    }
 }
 
 impl Interpreter {

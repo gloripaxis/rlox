@@ -126,6 +126,9 @@ impl Parser {
         if self.advance_maybe(&[TokenType::For]) {
             return self.for_stmt();
         }
+        if self.advance_maybe(&[TokenType::Return]) {
+            return self.return_stmt();
+        }
         self.expr_stmt()
     }
 
@@ -227,6 +230,16 @@ impl Parser {
         let expr = self.expression()?;
         self.expect(TokenType::Semicolon, ";", "an expression statement")?;
         Ok(Stmt::Expression(Rc::new(expr)))
+    }
+
+    fn return_stmt(&mut self) -> Result<Stmt, LoxError> {
+        let token = self.previous();
+        let expr: Option<Rc<Expr>> = match self.is_type(TokenType::Semicolon) {
+            true => None,
+            false => Some(Rc::new(self.expression()?)),
+        };
+        self.expect(TokenType::Semicolon, ";", "return statement")?;
+        Ok(Stmt::Return(Rc::clone(&token), expr))
     }
 
     fn expression(&mut self) -> Result<Expr, LoxError> {

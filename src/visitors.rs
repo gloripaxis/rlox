@@ -23,4 +23,5 @@ pub trait Visitor<T> {
     fn visit_while_stmt(&mut self, cond: &Expr, stmt: &Stmt) -> Result<(), LoxError>;
     fn visit_function_stmt(&mut self, name: Rc<Token>, params: &[Rc<Token>], body: &[Rc<Stmt>])
     -> Result<(), LoxError>;
+    fn visit_return_stmt(&mut self, token: Rc<Token>, expr: &Option<Rc<Expr>>) -> Result<(), LoxError>;
 }

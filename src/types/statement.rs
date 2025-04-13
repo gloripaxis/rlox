@@ -12,6 +12,7 @@ pub enum Stmt {
     If(Rc<Expr>, Rc<Stmt>, Option<Rc<Stmt>>),
     While(Rc<Expr>, Rc<Stmt>),
     Function(Rc<Token>, Vec<Rc<Token>>, Vec<Rc<Stmt>>),
+    Return(Rc<Token>, Option<Rc<Expr>>),
 }
 
 impl Stmt {
@@ -24,6 +25,7 @@ impl Stmt {
             Stmt::If(cond, br_then, br_else) => visitor.visit_if_stmt(cond, br_then, br_else),
             Stmt::While(cond, stmt) => visitor.visit_while_stmt(cond, stmt),
             Stmt::Function(name, params, body) => visitor.visit_function_stmt(Rc::clone(name), params, body),
+            Stmt::Return(token, expr) => visitor.visit_return_stmt(Rc::clone(token), expr),
         }
     }
 }
