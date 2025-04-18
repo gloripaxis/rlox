@@ -13,7 +13,7 @@ pub trait Visitor<T> {
     fn visit_literal_expr(&mut self, value: &Token) -> Result<T, LoxError>;
     fn visit_variable_expr(&mut self, name: &Token) -> Result<T, LoxError>;
     fn visit_assign_expr(&mut self, name: &Token, right: &Expr) -> Result<T, LoxError>;
-    fn visit_call_expr(&mut self, callee: &Expr, paren: &Token, args: &[Expr]) -> Result<T, LoxError>;
+    fn visit_call_expr(&mut self, callee: &Expr, paren: &Token, args: &[Rc<Expr>]) -> Result<T, LoxError>;
 
     fn visit_expression_stmt(&mut self, expr: &Expr) -> Result<(), LoxError>;
     fn visit_print_stmt(&mut self, expr: &Expr) -> Result<(), LoxError>;

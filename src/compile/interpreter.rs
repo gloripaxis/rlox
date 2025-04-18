@@ -112,7 +112,7 @@ impl Visitor<Val> for Interpreter {
         Ok(value)
     }
 
-    fn visit_call_expr(&mut self, callee: &Expr, paren: &Token, args: &[Expr]) -> Result<Val, LoxError> {
+    fn visit_call_expr(&mut self, callee: &Expr, paren: &Token, args: &[Rc<Expr>]) -> Result<Val, LoxError> {
         let callee = callee.accept(self)?;
         if let Val::Func(callable) = callee {
             let mut arg_values: Vec<Val> = vec![];

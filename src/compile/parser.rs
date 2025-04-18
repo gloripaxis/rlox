@@ -32,7 +32,7 @@ impl Parser {
         while !self.is_end() {
             let result = self.declaration();
             match result {
-                Ok(statement) => self.program.push(Rc::new(statement)),
+                Ok(statement) => self.program.push(statement),
                 Err(einfo) => self.errors.push(einfo),
             }
         }
@@ -44,7 +44,7 @@ impl Parser {
         }
     }
 
-    fn declaration(&mut self) -> Result<Stmt, LoxError> {
+    fn declaration(&mut self) -> Result<Rc<Stmt>, LoxError> {
         let result = if self.advance_maybe(&[TokenType::Fun]) {
             self.fun_decl("function")
         } else if self.advance_maybe(&[TokenType::Var]) {
@@ -62,7 +62,7 @@ impl Parser {
         }
     }
 
-    fn fun_decl(&mut self, kind: &'static str) -> Result<Stmt, LoxError> {
+    fn fun_decl(&mut self, kind: &'static str) -> Result<Rc<Stmt>, LoxError> {
         // Read function name
         let name = self.expect(TokenType::Identifier, &format!("{kind} name"), &format!("'{kind}'"))?;
 
@@ -96,21 +96,20 @@ impl Parser {
         let body = self.block_stmt()?;
 
         // Return function statement
-        Ok(Stmt::Function(Rc::clone(&name), params, vec![Rc::new(body)]))
+        Ok(Rc::new(Stmt::Function(name, params, vec![body])))
     }
 
-    fn var_decl(&mut self) -> Result<Stmt, LoxError> {
+    fn var_decl(&mut self) -> Result<Rc<Stmt>, LoxError> {
         let name = self.expect(TokenType::Identifier, "variable name", "'var'")?;
         let mut initializer: Option<Rc<Expr>> = None;
         if self.advance_maybe(&[TokenType::Assign]) {
-            let expr = self.expression()?;
-            initializer = Some(Rc::new(expr));
+            initializer = Some(self.expression()?);
         }
         self.expect(TokenType::Semicolon, ";", "variable declaration")?;
-        Ok(Stmt::Var(name, initializer))
+        Ok(Rc::new(Stmt::Var(name, initializer)))
     }
 
-    fn statement(&mut self) -> Result<Stmt, LoxError> {
+    fn statement(&mut self) -> Result<Rc<Stmt>, LoxError> {
         if self.advance_maybe(&[TokenType::Print]) {
             return self.print_stmt();
         }
@@ -132,52 +131,48 @@ impl Parser {
         self.expr_stmt()
     }
 
-    fn print_stmt(&mut self) -> Result<Stmt, LoxError> {
+    fn print_stmt(&mut self) -> Result<Rc<Stmt>, LoxError> {
         let expr = self.expression()?;
         self.expect(TokenType::Semicolon, ";", "a print statement")?;
-        Ok(Stmt::Print(Rc::new(expr)))
+        Ok(Rc::new(Stmt::Print(expr)))
     }
 
-    fn block_stmt(&mut self) -> Result<Stmt, LoxError> {
+    fn block_stmt(&mut self) -> Result<Rc<Stmt>, LoxError> {
         let mut statements: Vec<Rc<Stmt>> = vec![];
         while !self.is_type(TokenType::RightBrace) && !self.is_end() {
-            let stmt = self.declaration()?;
-            statements.push(Rc::new(stmt));
+            statements.push(self.declaration()?);
         }
         self.expect(TokenType::RightBrace, "}", "block")?;
-        Ok(Stmt::Block(statements))
+        Ok(Rc::new(Stmt::Block(statements)))
     }
 
-    fn if_stmt(&mut self) -> Result<Stmt, LoxError> {
+    fn if_stmt(&mut self) -> Result<Rc<Stmt>, LoxError> {
         self.expect(TokenType::LeftParen, "(", "'if'")?;
         let condition = self.expression()?;
         self.expect(TokenType::RightParen, ")", "'if' condition")?;
 
         let then_branch = self.statement()?;
         let else_branch = match self.advance_maybe(&[TokenType::Else]) {
-            true => {
-                let else_stmt = self.statement()?;
-                Some(Rc::new(else_stmt))
-            }
+            true => Some(self.statement()?),
             false => None,
         };
 
-        Ok(Stmt::If(Rc::new(condition), Rc::new(then_branch), else_branch))
+        Ok(Rc::new(Stmt::If(condition, then_branch, else_branch)))
     }
 
-    fn while_stmt(&mut self) -> Result<Stmt, LoxError> {
+    fn while_stmt(&mut self) -> Result<Rc<Stmt>, LoxError> {
         self.expect(TokenType::LeftParen, "(", "'while'")?;
         let condition = self.expression()?;
         self.expect(TokenType::RightParen, ")", "'while' condition")?;
         let stmts = self.statement()?;
-        Ok(Stmt::While(Rc::new(condition), Rc::new(stmts)))
+        Ok(Rc::new(Stmt::While(condition, stmts)))
     }
 
-    fn for_stmt(&mut self) -> Result<Stmt, LoxError> {
+    fn for_stmt(&mut self) -> Result<Rc<Stmt>, LoxError> {
         self.expect(TokenType::LeftParen, "(", "'for'")?;
 
         // Parse initializer
-        let orig_init: Option<Stmt>;
+        let orig_init: Option<Rc<Stmt>>;
         if self.advance_maybe(&[TokenType::Semicolon]) {
             orig_init = None;
         } else if self.advance_maybe(&[TokenType::Var]) {
@@ -206,7 +201,7 @@ impl Parser {
         // if it exists, add the increment to the end of the while-body
         let body = match orig_inc {
             None => orig_body,
-            Some(inc) => Stmt::Block(vec![Rc::new(orig_body), Rc::new(Stmt::Expression(Rc::new(inc)))]),
+            Some(inc) => Rc::new(Stmt::Block(vec![orig_body, Rc::new(Stmt::Expression(inc))])),
         };
 
         // if not explicitly provided, set the condition to perma-true
@@ -214,47 +209,47 @@ impl Parser {
             Some(expr) => expr,
             None => {
                 let fake_token = Token::new(TokenType::True, Lit::Bool(true), self.peek().get_position());
-                Expr::Literal(Rc::new(fake_token))
+                Rc::new(Expr::Literal(Rc::new(fake_token)))
             }
         };
 
         // if it exists, add the initializer before the while-body
         let result = match orig_init {
-            None => Stmt::While(Rc::new(cond), Rc::new(body)),
-            Some(init) => Stmt::Block(vec![Rc::new(init), Rc::new(Stmt::While(Rc::new(cond), Rc::new(body)))]),
+            None => Stmt::While(cond, body),
+            Some(init) => Stmt::Block(vec![init, Rc::new(Stmt::While(cond, body))]),
         };
-        Ok(result)
+        Ok(Rc::new(result))
     }
 
-    fn expr_stmt(&mut self) -> Result<Stmt, LoxError> {
+    fn expr_stmt(&mut self) -> Result<Rc<Stmt>, LoxError> {
         let expr = self.expression()?;
         self.expect(TokenType::Semicolon, ";", "an expression statement")?;
-        Ok(Stmt::Expression(Rc::new(expr)))
+        Ok(Rc::new(Stmt::Expression(expr)))
     }
 
-    fn return_stmt(&mut self) -> Result<Stmt, LoxError> {
+    fn return_stmt(&mut self) -> Result<Rc<Stmt>, LoxError> {
         let token = self.previous();
         let expr: Option<Rc<Expr>> = match self.is_type(TokenType::Semicolon) {
             true => None,
-            false => Some(Rc::new(self.expression()?)),
+            false => Some(self.expression()?),
         };
         self.expect(TokenType::Semicolon, ";", "return statement")?;
-        Ok(Stmt::Return(Rc::clone(&token), expr))
+        Ok(Rc::new(Stmt::Return(token, expr)))
     }
 
-    fn expression(&mut self) -> Result<Expr, LoxError> {
+    fn expression(&mut self) -> Result<Rc<Expr>, LoxError> {
         self.assign_expr()
     }
 
-    fn assign_expr(&mut self) -> Result<Expr, LoxError> {
+    fn assign_expr(&mut self) -> Result<Rc<Expr>, LoxError> {
         let expr = self.or_expr()?;
 
         if self.advance_maybe(&[TokenType::Assign]) {
             let eq_token = self.previous();
-            return match expr {
+            return match &*expr {
                 Expr::Variable(name) => {
                     let value = self.assign_expr()?;
-                    Ok(Expr::Assign(name, Rc::new(value)))
+                    Ok(Rc::new(Expr::Assign(Rc::clone(name), value)))
                 }
                 _ => Err(LoxError::invalid_assignment(eq_token.get_position(), &expr)),
             };
@@ -263,87 +258,87 @@ impl Parser {
         Ok(expr)
     }
 
-    fn or_expr(&mut self) -> Result<Expr, LoxError> {
+    fn or_expr(&mut self) -> Result<Rc<Expr>, LoxError> {
         let mut expr = self.and_expr()?;
 
         while self.advance_maybe(&[TokenType::Or]) {
             let operator = self.previous();
             let right = self.and_expr()?;
-            expr = Expr::Logical(Rc::new(expr), operator, Rc::new(right));
+            expr = Rc::new(Expr::Logical(expr, operator, right));
         }
 
         Ok(expr)
     }
 
-    fn and_expr(&mut self) -> Result<Expr, LoxError> {
+    fn and_expr(&mut self) -> Result<Rc<Expr>, LoxError> {
         let mut expr = self.equality_expr()?;
 
         while self.advance_maybe(&[TokenType::And]) {
             let operator = self.previous();
             let right = self.equality_expr()?;
-            expr = Expr::Logical(Rc::new(expr), operator, Rc::new(right));
+            expr = Rc::new(Expr::Logical(expr, operator, right));
         }
 
         Ok(expr)
     }
 
-    fn equality_expr(&mut self) -> Result<Expr, LoxError> {
-        let mut expr: Expr = self.comparison_expr()?;
+    fn equality_expr(&mut self) -> Result<Rc<Expr>, LoxError> {
+        let mut expr = self.comparison_expr()?;
         while self.advance_maybe(&[TokenType::Neq, TokenType::Eq]) {
             let token = self.previous();
             let right = self.comparison_expr()?;
-            expr = Expr::Binary(Rc::new(expr), token, Rc::new(right));
+            expr = Rc::new(Expr::Binary(expr, token, right));
         }
         Ok(expr)
     }
 
-    fn comparison_expr(&mut self) -> Result<Expr, LoxError> {
+    fn comparison_expr(&mut self) -> Result<Rc<Expr>, LoxError> {
         let mut expr = self.term_expr()?;
 
         while self.advance_maybe(&[TokenType::Gt, TokenType::Geq, TokenType::Lt, TokenType::Leq]) {
             let token = self.previous();
             let right = self.term_expr()?;
-            expr = Expr::Binary(Rc::new(expr), token, Rc::new(right));
+            expr = Rc::new(Expr::Binary(expr, token, right));
         }
         Ok(expr)
     }
 
-    fn term_expr(&mut self) -> Result<Expr, LoxError> {
+    fn term_expr(&mut self) -> Result<Rc<Expr>, LoxError> {
         let mut expr = self.factor_expr()?;
 
         while self.advance_maybe(&[TokenType::Minus, TokenType::Plus]) {
             let token = self.previous();
             let right = self.factor_expr()?;
-            expr = Expr::Binary(Rc::new(expr), token, Rc::new(right));
+            expr = Rc::new(Expr::Binary(expr, token, right));
         }
         Ok(expr)
     }
 
-    fn factor_expr(&mut self) -> Result<Expr, LoxError> {
+    fn factor_expr(&mut self) -> Result<Rc<Expr>, LoxError> {
         let mut expr = self.unary_expr()?;
 
         while self.advance_maybe(&[TokenType::Slash, TokenType::Star]) {
             let token = self.previous();
             let right = self.unary_expr()?;
-            expr = Expr::Binary(Rc::new(expr), token, Rc::new(right));
+            expr = Rc::new(Expr::Binary(expr, token, right));
         }
         Ok(expr)
     }
 
-    fn unary_expr(&mut self) -> Result<Expr, LoxError> {
+    fn unary_expr(&mut self) -> Result<Rc<Expr>, LoxError> {
         if self.advance_maybe(&[TokenType::Bang, TokenType::Minus]) {
             let token = self.previous();
             let right = self.unary_expr()?;
-            return Ok(Expr::Unary(token, Rc::new(right)));
+            return Ok(Rc::new(Expr::Unary(token, right)));
         }
         self.call_expr()
     }
 
-    fn call_expr(&mut self) -> Result<Expr, LoxError> {
+    fn call_expr(&mut self) -> Result<Rc<Expr>, LoxError> {
         let mut expr = self.primary_expr()?;
 
         while self.advance_maybe(&[TokenType::LeftParen]) {
-            let mut args: Vec<Expr> = vec![];
+            let mut args: Vec<Rc<Expr>> = vec![];
             if !self.is_type(TokenType::RightParen) {
                 loop {
                     args.push(self.expression()?);
@@ -356,39 +351,27 @@ impl Parser {
                 }
             }
             let paren = self.expect(TokenType::RightParen, ")", "function call")?;
-            expr = Expr::Call(Rc::new(expr), paren, args);
+            expr = Rc::new(Expr::Call(expr, paren, args));
         }
         Ok(expr)
     }
 
-    fn primary_expr(&mut self) -> Result<Expr, LoxError> {
+    fn primary_expr(&mut self) -> Result<Rc<Expr>, LoxError> {
         let token = self.peek();
         match token.get_type() {
-            TokenType::False => {
+            TokenType::False | TokenType::True | TokenType::Nil | TokenType::Number | TokenType::String => {
                 self.advance();
-                Ok(Expr::Literal(token))
-            }
-            TokenType::True => {
-                self.advance();
-                Ok(Expr::Literal(token))
-            }
-            TokenType::Nil => {
-                self.advance();
-                Ok(Expr::Literal(token))
-            }
-            TokenType::Number | TokenType::String => {
-                self.advance();
-                Ok(Expr::Literal(token))
+                Ok(Rc::new(Expr::Literal(token)))
             }
             TokenType::Identifier => {
                 self.advance();
-                Ok(Expr::Variable(token))
+                Ok(Rc::new(Expr::Variable(token)))
             }
             TokenType::LeftParen => {
                 self.advance();
                 let expr = self.expression()?;
                 self.expect(TokenType::RightParen, ")", "grouping expression")?;
-                Ok(Expr::Grouping(Rc::new(expr)))
+                Ok(Rc::new(Expr::Grouping(expr)))
             }
             _ => {
                 let message = format!("Expected expression at '{}'", self.peek().get_lexeme());

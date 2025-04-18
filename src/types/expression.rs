@@ -11,7 +11,7 @@ pub enum Expr {
     Literal(Rc<Token>),
     Variable(Rc<Token>),
     Assign(Rc<Token>, Rc<Expr>),
-    Call(Rc<Expr>, Rc<Token>, Vec<Expr>),
+    Call(Rc<Expr>, Rc<Token>, Vec<Rc<Expr>>),
 }
 
 impl Expr {
