@@ -114,9 +114,9 @@ impl Visitor<Val> for Interpreter {
         let dist = self.locals.get(&name.get_id());
         if let Some(x) = dist {
             let env = self.get_env_ancestor(*x);
-            env.borrow_mut().assign_here(&name, value.clone())?;
-        } else {
-            self.globals.borrow_mut().assign(&name, value.clone())?;
+            env.borrow_mut().assign_here(name.get_lexeme(), value.clone());
+        } else if let Err(()) = self.globals.borrow_mut().assign(name.get_lexeme(), value.clone()) {
+            return Err(LoxError::undefined_variable(name.get_position(), &name.get_literal()));
         }
         Ok(value)
     }
@@ -268,11 +268,14 @@ impl Visitor<Val> for Interpreter {
         }
 
         let class = LoxClass::new(name.get_lexeme(), method_map);
-        self.environment
+        let result = self
+            .environment
             .borrow_mut()
-            .assign(&name, Val::Class(Rc::new(class)))?;
-
-        Ok(())
+            .assign(name.get_lexeme(), Val::Class(Rc::new(class)));
+        match result {
+            Ok(()) => Ok(()),
+            Err(()) => Err(LoxError::undefined_variable(name.get_position(), &name.get_literal())),
+        }
     }
 }
 
@@ -316,11 +319,15 @@ impl Interpreter {
 
     pub fn lookup_variable(&self, name: &Rc<Token>) -> Result<Val, LoxError> {
         let distance = self.locals.get(&name.get_id());
+        let lex = name.get_lexeme();
         if let Some(x) = distance {
             let env = self.get_env_ancestor(*x);
-            return env.borrow().get_here(name);
+            Ok(env.borrow().get_here(&lex))
         } else {
-            return self.globals.borrow().get(name);
+            match self.globals.borrow().get(&lex) {
+                Ok(val) => Ok(val),
+                Err(()) => Err(LoxError::undefined_variable(name.get_position(), &name.get_literal())),
+            }
         }
     }
 

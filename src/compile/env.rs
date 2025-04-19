@@ -1,13 +1,8 @@
-use std::{
-    cell::RefCell,
-    collections::{HashMap, hash_map::Entry},
-    rc::Rc,
-};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::{
     builtins::{clock::ClockFunction, read::ReadFunction},
-    errors::LoxError,
-    types::{token::Token, value::Val},
+    types::value::Val,
 };
 
 #[derive(Debug, Clone)]
@@ -35,38 +30,34 @@ impl Environment {
         self.env.insert(name, value);
     }
 
-    pub fn assign(&mut self, name: &Token, value: Val) -> Result<(), LoxError> {
-        if let Entry::Occupied(mut e) = self.env.entry(name.get_lexeme()) {
-            e.insert(value);
-            return Ok(());
+    pub fn assign(&mut self, name: String, value: Val) -> Result<(), ()> {
+        if self.env.contains_key(&name) {
+            self.env.insert(name, value);
+            Ok(())
+        } else if let Some(env) = &self.parent {
+            env.borrow_mut().assign(name, value)
+        } else {
+            Err(())
         }
-
-        if let Some(env) = &self.parent {
-            return env.borrow_mut().assign(name, value);
-        }
-
-        Err(LoxError::undefined_variable(name.get_position(), &name.get_literal()))
     }
 
-    pub fn get(&self, name: &Token) -> Result<Val, LoxError> {
-        if self.env.contains_key(&name.get_lexeme()) {
-            return Ok(self.env.get(&name.get_lexeme()).unwrap().to_owned());
+    pub fn get(&self, name: &str) -> Result<Val, ()> {
+        if self.env.contains_key(name) {
+            return Ok(self.env.get(name).unwrap().to_owned());
         }
 
         if let Some(env) = &self.parent {
             return env.borrow_mut().get(name);
         }
-
-        Err(LoxError::undefined_variable(name.get_position(), &name.get_literal()))
+        Err(())
     }
 
-    pub fn get_here(&self, name: &Token) -> Result<Val, LoxError> {
-        Ok(self.env.get(&name.get_lexeme()).unwrap().to_owned())
+    pub fn get_here(&self, name: &str) -> Val {
+        self.env.get(name).unwrap().to_owned()
     }
 
-    pub fn assign_here(&mut self, name: &Token, value: Val) -> Result<(), LoxError> {
-        self.env.insert(name.get_lexeme(), value);
-        Ok(())
+    pub fn assign_here(&mut self, name: String, value: Val) {
+        self.env.insert(name, value);
     }
 
     pub fn get_parent(&self) -> Option<Rc<RefCell<Environment>>> {
