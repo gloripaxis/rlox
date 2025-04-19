@@ -11,6 +11,7 @@ use super::{statement::Stmt, token::Token, value::Val};
 pub enum FunctionType {
     None,
     Function,
+    Method,
 }
 
 pub trait LoxCallable: Debug {

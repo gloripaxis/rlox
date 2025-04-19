@@ -247,12 +247,27 @@ impl Visitor<Val> for Interpreter {
         Err(LoxError::Return(value))
     }
 
-    fn visit_class_stmt(&mut self, name: Rc<Token>, _methods: &[Rc<Stmt>]) -> Result<(), LoxError> {
+    fn visit_class_stmt(&mut self, name: Rc<Token>, methods: &[Rc<Stmt>]) -> Result<(), LoxError> {
         self.environment.borrow_mut().define(name.get_lexeme(), Val::Nil);
-        let klass = LoxClass::new(name.get_lexeme());
+
+        let mut method_map: HashMap<String, Rc<LoxFunction>> = HashMap::new();
+        for method in methods.iter() {
+            if let Stmt::Function(name, params, body) = method.as_ref() {
+                let func = LoxFunction::new(
+                    Rc::clone(name),
+                    params.iter().map(Rc::clone).collect(),
+                    body.iter().map(Rc::clone).collect(),
+                    Rc::clone(&self.environment),
+                );
+                method_map.insert(name.get_lexeme(), Rc::new(func));
+            }
+        }
+
+        let class = LoxClass::new(name.get_lexeme(), method_map);
         self.environment
             .borrow_mut()
-            .assign(&name, Val::Class(Rc::new(klass)))?;
+            .assign(&name, Val::Class(Rc::new(class)))?;
+
         Ok(())
     }
 }

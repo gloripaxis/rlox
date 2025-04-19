@@ -2,16 +2,28 @@ use std::{cell::RefCell, collections::HashMap, fmt, rc::Rc};
 
 use crate::{compile::interpreter::Interpreter, errors::LoxError};
 
-use super::{callable::LoxCallable, token::Token, value::Val};
+use super::{
+    callable::{LoxCallable, LoxFunction},
+    token::Token,
+    value::Val,
+};
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct LoxClass {
     name: Rc<str>,
+    methods: HashMap<String, Rc<LoxFunction>>,
 }
 
 impl LoxClass {
-    pub fn new(name: String) -> Self {
-        Self { name: Rc::from(name) }
+    pub fn new(name: String, methods: HashMap<String, Rc<LoxFunction>>) -> Self {
+        Self {
+            name: Rc::from(name),
+            methods,
+        }
+    }
+
+    pub fn find_method(&self, name: &str) -> Option<&Rc<LoxFunction>> {
+        self.methods.get(name)
     }
 }
 
@@ -39,6 +51,12 @@ impl LoxInstance {
         if self.state.contains_key(&lex) {
             return Ok(self.state.get(&lex).unwrap().clone());
         }
+
+        if let Some(x) = self.klass.find_method(&lex) {
+            let method = Rc::clone(x);
+            return Ok(Val::Func(method));
+        }
+
         Err(LoxError::undefined_property(
             name.get_position(),
             &format!("{self}"),

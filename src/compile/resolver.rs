@@ -219,9 +219,17 @@ impl Visitor<()> for Resolver<'_> {
         Ok(())
     }
 
-    fn visit_class_stmt(&mut self, name: Rc<Token>, _: &[Rc<Stmt>]) -> Result<(), LoxError> {
+    fn visit_class_stmt(&mut self, name: Rc<Token>, methods: &[Rc<Stmt>]) -> Result<(), LoxError> {
         self.declare(&name)?;
         self.define(&name);
+
+        for method in methods.iter() {
+            if let Stmt::Function(_, params, body) = method.as_ref() {
+                self.resolve_function_body(params, body, FunctionType::Method)?;
+            } else {
+                unreachable!("Statements within a class can only be methods");
+            }
+        }
         Ok(())
     }
 }
