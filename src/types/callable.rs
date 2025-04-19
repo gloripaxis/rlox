@@ -26,6 +26,7 @@ pub struct LoxFunction {
     params: Vec<Rc<Token>>,
     body: Vec<Rc<Stmt>>,
     closure: Rc<RefCell<Environment>>,
+    is_init: bool,
 }
 
 impl LoxFunction {
@@ -34,12 +35,14 @@ impl LoxFunction {
         params: Vec<Rc<Token>>,
         body: Vec<Rc<Stmt>>,
         closure: Rc<RefCell<Environment>>,
+        is_init: bool,
     ) -> Self {
         Self {
             name,
             params,
             body,
             closure,
+            is_init,
         }
     }
 
@@ -51,6 +54,7 @@ impl LoxFunction {
             params: self.params.iter().map(Rc::clone).collect(),
             body: self.body.iter().map(Rc::clone).collect(),
             closure: Rc::new(RefCell::new(env)),
+            is_init: self.is_init,
         }
     }
 }
@@ -66,12 +70,23 @@ impl LoxCallable for LoxFunction {
             env.define(param.get_lexeme(), arg);
         }
         let result = interpreter.execute_block(&self.body, env);
-        match result {
-            Ok(_) => Ok(Val::Nil),
-            Err(x) => match x {
-                LoxError::Return(val) => Ok(val),
-                e => Err(e),
-            },
+        if !self.is_init {
+            match result {
+                Ok(_) => Ok(Val::Nil),
+                Err(x) => match x {
+                    LoxError::Return(val) => Ok(val),
+                    e => Err(e),
+                },
+            }
+        } else {
+            let init_val = self.closure.borrow().get_here("this");
+            match result {
+                Ok(_) => Ok(init_val),
+                Err(x) => match x {
+                    LoxError::Return(_) => Ok(init_val),
+                    e => Err(e),
+                },
+            }
         }
     }
 

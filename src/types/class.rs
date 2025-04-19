@@ -78,14 +78,25 @@ impl fmt::Display for LoxInstance {
 
 impl LoxCallable for LoxClass {
     fn arity(&self) -> usize {
+        let initializer = self.find_method("init");
+        if let Some(init) = initializer {
+            return 1 + init.arity();
+        }
         1
     }
 
-    fn call(&self, _interpreter: &mut Interpreter, _args: Vec<Val>) -> Result<Val, LoxError> {
-        let val = _args.first().unwrap(); // arity checked before call, therefore must be correct
+    fn call(&self, interpreter: &mut Interpreter, args: Vec<Val>) -> Result<Val, LoxError> {
+        let val = args.first().unwrap(); // arity checked before call, therefore must be correct
         if let Val::Class(klass) = val {
             let instance = LoxInstance::new(Rc::clone(klass));
-            return Ok(Val::Instance(Rc::new(RefCell::new(instance))));
+            let instance = Rc::new(RefCell::new(instance));
+            let initializer = klass.find_method("init");
+
+            if let Some(init) = initializer {
+                let new_args: Vec<Val> = args[1..].to_vec();
+                init.bind(Rc::clone(&instance)).call(interpreter, new_args)?;
+            }
+            return Ok(Val::Instance(instance));
         }
         unreachable!("LoxClass can only be called with itself as the first argument");
     }

@@ -236,7 +236,13 @@ impl Visitor<Val> for Interpreter {
     ) -> Result<(), LoxError> {
         let vec_params: Vec<Rc<Token>> = params.iter().map(Rc::clone).collect();
         let vec_body: Vec<Rc<Stmt>> = body.iter().map(Rc::clone).collect();
-        let func = LoxFunction::new(Rc::clone(&name), vec_params, vec_body, Rc::clone(&self.environment));
+        let func = LoxFunction::new(
+            Rc::clone(&name),
+            vec_params,
+            vec_body,
+            Rc::clone(&self.environment),
+            false,
+        );
         self.environment
             .borrow_mut()
             .define(name.get_lexeme(), Val::Func(Rc::new(func)));
@@ -262,6 +268,7 @@ impl Visitor<Val> for Interpreter {
                     params.iter().map(Rc::clone).collect(),
                     body.iter().map(Rc::clone).collect(),
                     Rc::clone(&self.environment),
+                    name.get_lexeme() == "init",
                 );
                 method_map.insert(name.get_lexeme(), Rc::new(func));
             }
