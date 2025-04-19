@@ -7,13 +7,6 @@ use crate::{
 
 use super::{class::LoxInstance, statement::Stmt, token::Token, value::Val};
 
-#[derive(Debug, Copy, Clone)]
-pub enum FunctionType {
-    None,
-    Function,
-    Method,
-}
-
 pub trait LoxCallable: Debug {
     fn arity(&self) -> usize;
     fn call(&self, interpreter: &mut Interpreter, args: Vec<Val>) -> Result<Val, LoxError>;

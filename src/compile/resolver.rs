@@ -2,11 +2,18 @@ use std::{collections::HashMap, rc::Rc};
 
 use crate::{
     errors::LoxError,
-    types::{callable::FunctionType, expression::Expr, statement::Stmt, token::Token},
+    types::{expression::Expr, statement::Stmt, token::Token},
     visitors::Visitor,
 };
 
 use super::interpreter::Interpreter;
+
+#[derive(Debug, Copy, Clone)]
+pub enum FunctionType {
+    None,
+    Function,
+    Method,
+}
 
 #[derive(Debug, Copy, Clone)]
 pub enum ClassType {
