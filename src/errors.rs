@@ -59,6 +59,15 @@ impl LoxError {
         Self::Syntax(pos, String::from("Function defined with more than 255 parameters"))
     }
 
+    // SyntaxErrors (Resolver)
+    pub fn redeclaring_in_scope(pos: Pos, name: &Lit) -> Self {
+        Self::Syntax(pos, format!("Identifier {} already declared in this scope", name))
+    }
+
+    pub fn global_return(pos: Pos) -> Self {
+        Self::Syntax(pos, String::from("Cannot return from global context"))
+    }
+
     // RuntimeErrors (Interpreter)
     pub fn unary_operand(pos: Pos, op: TokenType, value: &Val) -> Self {
         Self::Runtime(pos, format!("Operand of '{}' must be a number; found {:?}", op, value))

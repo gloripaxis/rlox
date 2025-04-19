@@ -2,7 +2,7 @@ use std::{collections::HashMap, rc::Rc};
 
 use crate::{
     errors::LoxError,
-    types::{expression::Expr, statement::Stmt, token::Token},
+    types::{callable::FunctionType, expression::Expr, statement::Stmt, token::Token},
     visitors::Visitor,
 };
 
@@ -11,6 +11,7 @@ use super::interpreter::Interpreter;
 pub struct Resolver<'a> {
     interpreter: &'a mut Interpreter,
     scopes: Vec<HashMap<String, bool>>,
+    ftype: FunctionType,
 }
 
 impl<'a> Resolver<'a> {
@@ -18,6 +19,7 @@ impl<'a> Resolver<'a> {
         Self {
             interpreter,
             scopes: vec![],
+            ftype: FunctionType::None,
         }
     }
 
@@ -53,14 +55,24 @@ impl<'a> Resolver<'a> {
         todo!("Throw appropriate LoxError, tho should be unreachable...")
     }
 
-    fn resolve_function_body(&mut self, params: &[Rc<Token>], body: &[Rc<Stmt>]) -> Result<(), LoxError> {
+    fn resolve_function_body(
+        &mut self,
+        params: &[Rc<Token>],
+        body: &[Rc<Stmt>],
+        ftype: FunctionType,
+    ) -> Result<(), LoxError> {
+        let enclosing = self.ftype;
+        self.ftype = ftype;
+
         self.begin_scope();
         for param in params.iter() {
-            self.declare(param);
+            self.declare(param)?;
             self.define(param);
         }
         self.resolve_program(body)?;
         self.end_scope();
+
+        self.ftype = enclosing;
         Ok(())
     }
 
@@ -72,11 +84,16 @@ impl<'a> Resolver<'a> {
         self.scopes.pop();
     }
 
-    fn declare(&mut self, name: &Rc<Token>) {
+    fn declare(&mut self, name: &Rc<Token>) -> Result<(), LoxError> {
         if self.scopes.is_empty() {
-            return;
+            return Ok(());
         }
-        self.scopes.last_mut().unwrap().insert(name.get_lexeme(), false);
+        let lex = name.get_lexeme();
+        if self.scopes.last().unwrap().contains_key(&lex) {
+            return Err(LoxError::redeclaring_in_scope(name.get_position(), &name.get_literal()));
+        }
+        self.scopes.last_mut().unwrap().insert(lex, false);
+        Ok(())
     }
 
     fn define(&mut self, name: &Rc<Token>) {
@@ -142,7 +159,7 @@ impl Visitor<()> for Resolver<'_> {
     }
 
     fn visit_var_stmt(&mut self, name: Rc<Token>, init: &Option<Rc<Expr>>) -> Result<(), LoxError> {
-        self.declare(&name);
+        self.declare(&name)?;
         if let Some(expr) = init {
             self.resolve_expr(Rc::clone(expr))?;
         }
@@ -177,12 +194,15 @@ impl Visitor<()> for Resolver<'_> {
         params: &[Rc<Token>],
         body: &[Rc<Stmt>],
     ) -> Result<(), LoxError> {
-        self.declare(&name);
+        self.declare(&name)?;
         self.define(&name);
-        self.resolve_function_body(params, body)
+        self.resolve_function_body(params, body, FunctionType::Function)
     }
 
-    fn visit_return_stmt(&mut self, _: Rc<Token>, expr: &Option<Rc<Expr>>) -> Result<(), LoxError> {
+    fn visit_return_stmt(&mut self, token: Rc<Token>, expr: &Option<Rc<Expr>>) -> Result<(), LoxError> {
+        if let FunctionType::None = self.ftype {
+            return Err(LoxError::global_return(token.get_position()));
+        }
         if let Some(value) = expr {
             self.resolve_expr(Rc::clone(value))?;
         }
