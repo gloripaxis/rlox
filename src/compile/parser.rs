@@ -95,8 +95,16 @@ impl Parser {
         self.expect(TokenType::LeftBrace, "{", "function signature")?;
         let body = self.block_stmt()?;
 
-        // Return function statement
-        Ok(Rc::new(Stmt::Function(name, params, vec![body])))
+        // Destruture Block into Vec<Rc<Stmt>> to avoid block nesting
+        if let Stmt::Block(stmts) = body.as_ref() {
+            Ok(Rc::new(Stmt::Function(
+                name,
+                params,
+                stmts.iter().map(Rc::clone).collect(),
+            )))
+        } else {
+            unreachable!("Function body must always be a block statement");
+        }
     }
 
     fn var_decl(&mut self) -> Result<Rc<Stmt>, LoxError> {

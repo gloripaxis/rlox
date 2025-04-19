@@ -1,4 +1,4 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use super::env::Environment;
 use crate::{
@@ -16,11 +16,12 @@ use crate::{
 pub struct Interpreter {
     globals: Rc<RefCell<Environment>>,
     environment: Rc<RefCell<Environment>>,
+    locals: HashMap<String, usize>,
 }
 
 impl Visitor<Val> for Interpreter {
     // --------------------- EXPRESSIONS ---------------------
-    fn visit_unary_expr(&mut self, op: &Token, right: &Expr) -> Result<Val, LoxError> {
+    fn visit_unary_expr(&mut self, op: Rc<Token>, right: Rc<Expr>) -> Result<Val, LoxError> {
         let value = right.accept(self)?;
         match op.get_type() {
             TokenType::Minus => match value {
@@ -32,7 +33,7 @@ impl Visitor<Val> for Interpreter {
         }
     }
 
-    fn visit_binary_expr(&mut self, left: &Expr, op: &Token, right: &Expr) -> Result<Val, LoxError> {
+    fn visit_binary_expr(&mut self, left: Rc<Expr>, op: Rc<Token>, right: Rc<Expr>) -> Result<Val, LoxError> {
         let lval = left.accept(self)?;
         let rval = right.accept(self)?;
         let typ = op.get_type();
@@ -78,7 +79,7 @@ impl Visitor<Val> for Interpreter {
         }
     }
 
-    fn visit_logic_expr(&mut self, left: &Expr, op: &Token, right: &Expr) -> Result<Val, LoxError> {
+    fn visit_logic_expr(&mut self, left: Rc<Expr>, op: Rc<Token>, right: Rc<Expr>) -> Result<Val, LoxError> {
         let left_val = left.accept(self)?;
 
         // NOTE: Original implementation returned the literal value of the operand, not strictly true or false
@@ -94,25 +95,32 @@ impl Visitor<Val> for Interpreter {
         }
     }
 
-    fn visit_grouping_expr(&mut self, expr: &Expr) -> Result<Val, LoxError> {
+    fn visit_grouping_expr(&mut self, expr: Rc<Expr>) -> Result<Val, LoxError> {
         expr.accept(self)
     }
 
-    fn visit_literal_expr(&mut self, value: &Token) -> Result<Val, LoxError> {
+    fn visit_literal_expr(&mut self, value: Rc<Token>) -> Result<Val, LoxError> {
         Ok(Val::from_literal(&value.get_literal()))
     }
 
-    fn visit_variable_expr(&mut self, name: &Token) -> Result<Val, LoxError> {
-        self.environment.borrow().get(name)
+    fn visit_variable_expr(&mut self, name: Rc<Token>) -> Result<Val, LoxError> {
+        self.lookup_variable(&name)
     }
 
-    fn visit_assign_expr(&mut self, name: &Token, right: &Expr) -> Result<Val, LoxError> {
+    fn visit_assign_expr(&mut self, name: Rc<Token>, right: Rc<Expr>) -> Result<Val, LoxError> {
         let value = right.accept(self)?;
-        self.environment.borrow_mut().assign(name, value.clone())?;
+
+        let dist = self.locals.get(&name.get_id());
+        if let Some(x) = dist {
+            let env = self.get_env_ancestor(*x);
+            env.borrow_mut().assign_here(&name, value.clone())?;
+        } else {
+            self.globals.borrow_mut().assign(&name, value.clone())?;
+        }
         Ok(value)
     }
 
-    fn visit_call_expr(&mut self, callee: &Expr, paren: &Token, args: &[Rc<Expr>]) -> Result<Val, LoxError> {
+    fn visit_call_expr(&mut self, callee: Rc<Expr>, paren: Rc<Token>, args: &[Rc<Expr>]) -> Result<Val, LoxError> {
         let callee = callee.accept(self)?;
         if let Val::Func(callable) = callee {
             let mut arg_values: Vec<Val> = vec![];
@@ -134,18 +142,18 @@ impl Visitor<Val> for Interpreter {
     }
 
     // --------------------- STATEMENTS ---------------------
-    fn visit_expression_stmt(&mut self, expr: &Expr) -> Result<(), LoxError> {
+    fn visit_expression_stmt(&mut self, expr: Rc<Expr>) -> Result<(), LoxError> {
         expr.accept(self)?;
         Ok(())
     }
 
-    fn visit_print_stmt(&mut self, expr: &Expr) -> Result<(), LoxError> {
+    fn visit_print_stmt(&mut self, expr: Rc<Expr>) -> Result<(), LoxError> {
         let value = expr.accept(self)?;
         println!("{value}");
         Ok(())
     }
 
-    fn visit_var_stmt(&mut self, name: &Token, init: &Option<Rc<Expr>>) -> Result<(), LoxError> {
+    fn visit_var_stmt(&mut self, name: Rc<Token>, init: &Option<Rc<Expr>>) -> Result<(), LoxError> {
         let value = match init {
             Some(expr) => expr.accept(self)?,
             None => Val::Nil,
@@ -159,7 +167,7 @@ impl Visitor<Val> for Interpreter {
         self.execute_block(statements, new_env)
     }
 
-    fn visit_if_stmt(&mut self, cond: &Expr, b_then: &Stmt, b_else: &Option<Rc<Stmt>>) -> Result<(), LoxError> {
+    fn visit_if_stmt(&mut self, cond: Rc<Expr>, b_then: Rc<Stmt>, b_else: &Option<Rc<Stmt>>) -> Result<(), LoxError> {
         let value = cond.accept(self)?;
         match value.is_truthy() {
             true => b_then.accept(self)?,
@@ -172,7 +180,7 @@ impl Visitor<Val> for Interpreter {
         Ok(())
     }
 
-    fn visit_while_stmt(&mut self, cond: &Expr, stmt: &Stmt) -> Result<(), LoxError> {
+    fn visit_while_stmt(&mut self, cond: Rc<Expr>, stmt: Rc<Stmt>) -> Result<(), LoxError> {
         while cond.accept(self)?.is_truthy() {
             stmt.accept(self)?;
         }
@@ -187,7 +195,7 @@ impl Visitor<Val> for Interpreter {
     ) -> Result<(), LoxError> {
         let vec_params: Vec<Rc<Token>> = params.iter().map(Rc::clone).collect();
         let vec_body: Vec<Rc<Stmt>> = body.iter().map(Rc::clone).collect();
-        let func = LoxFunction::new(Rc::clone(&name), vec_params, vec_body);
+        let func = LoxFunction::new(Rc::clone(&name), vec_params, vec_body, Rc::clone(&self.environment));
         self.environment
             .borrow_mut()
             .define(name.get_lexeme(), Val::Func(Rc::new(func)));
@@ -209,6 +217,7 @@ impl Interpreter {
         Self {
             globals: Rc::clone(&global_env),
             environment: Rc::clone(&global_env),
+            locals: HashMap::new(),
         }
     }
 
@@ -236,7 +245,32 @@ impl Interpreter {
         Ok(())
     }
 
-    pub fn get_global_env(&self) -> Rc<RefCell<Environment>> {
-        Rc::clone(&self.globals)
+    pub fn resolve(&mut self, var_id: String, depth: usize) {
+        self.locals.insert(var_id, depth);
+    }
+
+    pub fn lookup_variable(&self, name: &Rc<Token>) -> Result<Val, LoxError> {
+        let distance = self.locals.get(&name.get_id());
+        if let Some(x) = distance {
+            let env = self.get_env_ancestor(*x);
+            return env.borrow().get_here(name);
+        } else {
+            return self.globals.borrow().get(name);
+        }
+    }
+
+    fn get_env_ancestor(&self, x: usize) -> Rc<RefCell<Environment>> {
+        let mut env = Rc::clone(&self.environment);
+        if x == 0 {
+            return env;
+        }
+
+        let mut i = x;
+        while i > 0 {
+            let tmp = env.borrow().get_parent().unwrap();
+            env = tmp;
+            i -= 1;
+        }
+        env
     }
 }

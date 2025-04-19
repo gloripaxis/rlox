@@ -213,4 +213,8 @@ impl Token {
     pub fn get_position(&self) -> Pos {
         self.position
     }
+
+    pub fn get_id(&self) -> String {
+        format!("{}:{}:{}", self.get_lexeme(), self.position.line, self.position.col)
+    }
 }

@@ -2,6 +2,7 @@ use std::error::Error;
 use std::io::Write;
 use std::{fs, io, process};
 
+use compile::resolver::Resolver;
 use compile::{interpreter::Interpreter, lexer::Lexer, parser::Parser};
 use errors::LoxError;
 
@@ -14,6 +15,8 @@ mod visitors;
 fn run(source: &str, interpreter: &mut Interpreter) -> Result<(), Vec<LoxError>> {
     let tokens = Lexer::new(source).scan()?;
     let program = Parser::new(tokens).parse()?;
+
+    Resolver::new(interpreter).resolve(&program)?;
     interpreter.interpret(program)?;
     Ok(())
 }

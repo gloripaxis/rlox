@@ -59,4 +59,20 @@ impl Environment {
 
         Err(LoxError::undefined_variable(name.get_position(), &name.get_literal()))
     }
+
+    pub fn get_here(&self, name: &Token) -> Result<Val, LoxError> {
+        Ok(self.env.get(&name.get_lexeme()).unwrap().to_owned())
+    }
+
+    pub fn assign_here(&mut self, name: &Token, value: Val) -> Result<(), LoxError> {
+        self.env.insert(name.get_lexeme(), value);
+        Ok(())
+    }
+
+    pub fn get_parent(&self) -> Option<Rc<RefCell<Environment>>> {
+        if let Some(x) = &self.parent {
+            return Some(Rc::clone(x));
+        }
+        None
+    }
 }

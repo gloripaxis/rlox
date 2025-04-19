@@ -1,0 +1,191 @@
+use std::{collections::HashMap, rc::Rc};
+
+use crate::{
+    errors::LoxError,
+    types::{expression::Expr, statement::Stmt, token::Token},
+    visitors::Visitor,
+};
+
+use super::interpreter::Interpreter;
+
+pub struct Resolver<'a> {
+    interpreter: &'a mut Interpreter,
+    scopes: Vec<HashMap<String, bool>>,
+}
+
+impl<'a> Resolver<'a> {
+    pub fn new(interpreter: &'a mut Interpreter) -> Self {
+        Self {
+            interpreter,
+            scopes: vec![],
+        }
+    }
+
+    pub fn resolve(&mut self, statements: &[Rc<Stmt>]) -> Result<(), Vec<LoxError>> {
+        if let Err(err) = self.resolve_program(statements) {
+            return Err(vec![err]);
+        }
+        Ok(())
+    }
+
+    fn resolve_program(&mut self, statements: &[Rc<Stmt>]) -> Result<(), LoxError> {
+        for stmt in statements.iter() {
+            self.resolve_stmt(Rc::clone(stmt))?;
+        }
+        Ok(())
+    }
+
+    fn resolve_stmt(&mut self, stmt: Rc<Stmt>) -> Result<(), LoxError> {
+        stmt.accept(self)
+    }
+
+    fn resolve_expr(&mut self, expr: Rc<Expr>) -> Result<(), LoxError> {
+        expr.accept(self)
+    }
+
+    fn resolve_local(&mut self, name: Rc<Token>) -> Result<(), LoxError> {
+        for i in (0..self.scopes.len()).rev() {
+            if self.scopes.get(i).unwrap().contains_key(&name.get_lexeme()) {
+                self.interpreter.resolve(name.get_id(), self.scopes.len() - 1 - i);
+                return Ok(());
+            }
+        }
+        todo!("Throw appropriate LoxError, tho should be unreachable...")
+    }
+
+    fn resolve_function_body(&mut self, params: &[Rc<Token>], body: &[Rc<Stmt>]) -> Result<(), LoxError> {
+        self.begin_scope();
+        for param in params.iter() {
+            self.declare(param);
+            self.define(param);
+        }
+        self.resolve_program(body)?;
+        self.end_scope();
+        Ok(())
+    }
+
+    fn begin_scope(&mut self) {
+        self.scopes.push(HashMap::new());
+    }
+
+    fn end_scope(&mut self) {
+        self.scopes.pop();
+    }
+
+    fn declare(&mut self, name: &Rc<Token>) {
+        if self.scopes.is_empty() {
+            return;
+        }
+        self.scopes.last_mut().unwrap().insert(name.get_lexeme(), false);
+    }
+
+    fn define(&mut self, name: &Rc<Token>) {
+        if self.scopes.is_empty() {
+            return;
+        }
+        self.scopes.last_mut().unwrap().insert(name.get_lexeme(), true);
+    }
+}
+
+impl Visitor<()> for Resolver<'_> {
+    fn visit_unary_expr(&mut self, _: Rc<Token>, right: Rc<Expr>) -> Result<(), LoxError> {
+        self.resolve_expr(right)
+    }
+
+    fn visit_binary_expr(&mut self, left: Rc<Expr>, _: Rc<Token>, right: Rc<Expr>) -> Result<(), LoxError> {
+        self.resolve_expr(left)?;
+        self.resolve_expr(right)
+    }
+
+    fn visit_logic_expr(&mut self, left: Rc<Expr>, _: Rc<Token>, right: Rc<Expr>) -> Result<(), LoxError> {
+        self.resolve_expr(left)?;
+        self.resolve_expr(right)
+    }
+
+    fn visit_grouping_expr(&mut self, expr: Rc<Expr>) -> Result<(), LoxError> {
+        self.resolve_expr(expr)
+    }
+
+    fn visit_literal_expr(&mut self, _: Rc<Token>) -> Result<(), LoxError> {
+        Ok(())
+    }
+
+    fn visit_variable_expr(&mut self, name: Rc<Token>) -> Result<(), LoxError> {
+        if !self.scopes.is_empty() {
+            if let Some(false) = self.scopes.last().unwrap().get(&name.get_lexeme()) {
+                panic!("RAISE LOX ERROR");
+            }
+        }
+        self.resolve_local(name)?;
+        Ok(())
+    }
+
+    fn visit_assign_expr(&mut self, name: Rc<Token>, right: Rc<Expr>) -> Result<(), LoxError> {
+        self.resolve_expr(right)?;
+        self.resolve_local(name)
+    }
+
+    fn visit_call_expr(&mut self, callee: Rc<Expr>, _: Rc<Token>, args: &[Rc<Expr>]) -> Result<(), LoxError> {
+        self.resolve_expr(callee)?;
+        for ex in args.iter() {
+            self.resolve_expr(Rc::clone(ex))?;
+        }
+        Ok(())
+    }
+
+    fn visit_expression_stmt(&mut self, expr: Rc<Expr>) -> Result<(), LoxError> {
+        self.resolve_expr(expr)
+    }
+
+    fn visit_print_stmt(&mut self, expr: Rc<Expr>) -> Result<(), LoxError> {
+        self.resolve_expr(expr)
+    }
+
+    fn visit_var_stmt(&mut self, name: Rc<Token>, init: &Option<Rc<Expr>>) -> Result<(), LoxError> {
+        self.declare(&name);
+        if let Some(expr) = init {
+            self.resolve_expr(Rc::clone(expr))?;
+        }
+        self.define(&name);
+        Ok(())
+    }
+
+    fn visit_block_stmt(&mut self, statements: &[Rc<Stmt>]) -> Result<(), LoxError> {
+        self.begin_scope();
+        self.resolve_program(statements)?;
+        self.end_scope();
+        Ok(())
+    }
+
+    fn visit_if_stmt(&mut self, cond: Rc<Expr>, b_then: Rc<Stmt>, b_else: &Option<Rc<Stmt>>) -> Result<(), LoxError> {
+        self.resolve_expr(cond)?;
+        self.resolve_stmt(b_then)?;
+        if let Some(else_stmt) = b_else {
+            self.resolve_stmt(Rc::clone(else_stmt))?;
+        }
+        Ok(())
+    }
+
+    fn visit_while_stmt(&mut self, cond: Rc<Expr>, stmt: Rc<Stmt>) -> Result<(), LoxError> {
+        self.resolve_expr(cond)?;
+        self.resolve_stmt(stmt)
+    }
+
+    fn visit_function_stmt(
+        &mut self,
+        name: Rc<Token>,
+        params: &[Rc<Token>],
+        body: &[Rc<Stmt>],
+    ) -> Result<(), LoxError> {
+        self.declare(&name);
+        self.define(&name);
+        self.resolve_function_body(params, body)
+    }
+
+    fn visit_return_stmt(&mut self, _: Rc<Token>, expr: &Option<Rc<Expr>>) -> Result<(), LoxError> {
+        if let Some(value) = expr {
+            self.resolve_expr(Rc::clone(value))?;
+        }
+        Ok(())
+    }
+}
