@@ -160,6 +160,24 @@ impl Visitor<Val> for Interpreter {
         }
     }
 
+    fn visit_get_expr(&mut self, object: Rc<Expr>, name: Rc<Token>) -> Result<Val, LoxError> {
+        let value = object.accept(self)?;
+        if let Val::Instance(x) = value {
+            return x.borrow().get(name);
+        }
+        Err(LoxError::illegal_field_access(name.get_position(), &name.get_literal()))
+    }
+
+    fn visit_set_expr(&mut self, object: Rc<Expr>, name: Rc<Token>, value: Rc<Expr>) -> Result<Val, LoxError> {
+        let instance = object.accept(self)?;
+        if let Val::Instance(x) = instance {
+            let val = value.accept(self)?;
+            x.borrow_mut().set(name, val.clone());
+            return Ok(val);
+        }
+        Err(LoxError::illegal_field_access(name.get_position(), &name.get_literal()))
+    }
+
     // --------------------- STATEMENTS ---------------------
     fn visit_expression_stmt(&mut self, expr: Rc<Expr>) -> Result<(), LoxError> {
         expr.accept(self)?;

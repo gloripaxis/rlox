@@ -14,6 +14,8 @@ pub trait Visitor<T> {
     fn visit_variable_expr(&mut self, name: Rc<Token>) -> Result<T, LoxError>;
     fn visit_assign_expr(&mut self, name: Rc<Token>, right: Rc<Expr>) -> Result<T, LoxError>;
     fn visit_call_expr(&mut self, callee: Rc<Expr>, paren: Rc<Token>, args: &[Rc<Expr>]) -> Result<T, LoxError>;
+    fn visit_get_expr(&mut self, object: Rc<Expr>, name: Rc<Token>) -> Result<T, LoxError>;
+    fn visit_set_expr(&mut self, object: Rc<Expr>, name: Rc<Token>, value: Rc<Expr>) -> Result<T, LoxError>;
 
     fn visit_expression_stmt(&mut self, expr: Rc<Expr>) -> Result<(), LoxError>;
     fn visit_print_stmt(&mut self, expr: Rc<Expr>) -> Result<(), LoxError>;

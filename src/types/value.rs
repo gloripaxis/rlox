@@ -1,4 +1,4 @@
-use std::{fmt, rc::Rc};
+use std::{cell::RefCell, fmt, rc::Rc};
 
 use super::{
     callable::LoxCallable,
@@ -14,7 +14,7 @@ pub enum Val {
     Bool(bool),
     Func(Rc<dyn LoxCallable>),
     Class(Rc<LoxClass>),
-    Instance(Rc<LoxInstance>),
+    Instance(Rc<RefCell<LoxInstance>>),
 }
 
 impl fmt::Debug for Val {
@@ -26,7 +26,7 @@ impl fmt::Debug for Val {
             Val::Bool(x) => write!(f, "boolean ({})", x),
             Val::Func(x) => write!(f, "function {}", x.name()),
             Val::Class(x) => write!(f, "class {}", x),
-            Val::Instance(x) => write!(f, "{}", x),
+            Val::Instance(x) => write!(f, "{}", x.borrow()),
         }
     }
 }
@@ -46,7 +46,7 @@ impl fmt::Display for Val {
             Val::Bool(x) => write!(f, "{}", x),
             Val::Func(x) => write!(f, "{}", x.name()),
             Val::Class(x) => write!(f, "{}", x),
-            Val::Instance(x) => write!(f, "{}", x),
+            Val::Instance(x) => write!(f, "{}", x.borrow()),
         }
     }
 }

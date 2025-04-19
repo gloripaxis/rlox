@@ -151,6 +151,15 @@ impl Visitor<()> for Resolver<'_> {
         Ok(())
     }
 
+    fn visit_get_expr(&mut self, object: Rc<Expr>, _: Rc<Token>) -> Result<(), LoxError> {
+        self.resolve_expr(object)
+    }
+
+    fn visit_set_expr(&mut self, object: Rc<Expr>, _: Rc<Token>, value: Rc<Expr>) -> Result<(), LoxError> {
+        self.resolve_expr(value)?;
+        self.resolve_expr(object)
+    }
+
     fn visit_expression_stmt(&mut self, expr: Rc<Expr>) -> Result<(), LoxError> {
         self.resolve_expr(expr)
     }

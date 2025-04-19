@@ -104,4 +104,12 @@ impl LoxError {
             format!("Function {callee} expected {expected} arguments but got {received}"),
         )
     }
+
+    pub fn illegal_field_access(pos: Pos, name: &Lit) -> Self {
+        Self::Runtime(pos, format!("Properties cannot be accessed on non-instance {:?}", name))
+    }
+
+    pub fn undefined_property(pos: Pos, class: &str, name: &Lit) -> Self {
+        Self::Runtime(pos, format!("Undefined property '{}' on {}", name, class))
+    }
 }

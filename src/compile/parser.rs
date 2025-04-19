@@ -269,11 +269,10 @@ impl Parser {
 
         if self.advance_maybe(&[TokenType::Assign]) {
             let eq_token = self.previous();
+            let value = self.assign_expr()?;
             return match &*expr {
-                Expr::Variable(name) => {
-                    let value = self.assign_expr()?;
-                    Ok(Rc::new(Expr::Assign(Rc::clone(name), value)))
-                }
+                Expr::Variable(name) => Ok(Rc::new(Expr::Assign(Rc::clone(name), value))),
+                Expr::Get(object, name) => Ok(Rc::new(Expr::Set(Rc::clone(object), Rc::clone(name), value))),
                 _ => Err(LoxError::invalid_assignment(eq_token.get_position(), &expr)),
             };
         }
@@ -360,23 +359,34 @@ impl Parser {
     fn call_expr(&mut self) -> Result<Rc<Expr>, LoxError> {
         let mut expr = self.primary_expr()?;
 
-        while self.advance_maybe(&[TokenType::LeftParen]) {
-            let mut args: Vec<Rc<Expr>> = vec![];
-            if !self.is_type(TokenType::RightParen) {
-                loop {
-                    args.push(self.expression()?);
-                    if args.len() >= 255 {
-                        return Err(LoxError::too_many_args(self.peek().get_position()));
-                    }
-                    if !self.advance_maybe(&[TokenType::Comma]) {
-                        break;
-                    }
-                }
+        loop {
+            if self.advance_maybe(&[TokenType::LeftParen]) {
+                expr = self.finish_call(expr)?;
+            } else if self.advance_maybe(&[TokenType::Dot]) {
+                let name = self.expect(TokenType::Identifier, "property name", ".")?;
+                expr = Rc::new(Expr::Get(expr, name));
+            } else {
+                break;
             }
-            let paren = self.expect(TokenType::RightParen, ")", "function call")?;
-            expr = Rc::new(Expr::Call(expr, paren, args));
         }
         Ok(expr)
+    }
+
+    fn finish_call(&mut self, callee: Rc<Expr>) -> Result<Rc<Expr>, LoxError> {
+        let mut args: Vec<Rc<Expr>> = vec![];
+        if !self.is_type(TokenType::RightParen) {
+            loop {
+                args.push(self.expression()?);
+                if args.len() >= 255 {
+                    return Err(LoxError::too_many_args(self.peek().get_position()));
+                }
+                if !self.advance_maybe(&[TokenType::Comma]) {
+                    break;
+                }
+            }
+        }
+        let paren = self.expect(TokenType::RightParen, ")", "function call")?;
+        Ok(Rc::new(Expr::Call(callee, paren, args)))
     }
 
     fn primary_expr(&mut self) -> Result<Rc<Expr>, LoxError> {

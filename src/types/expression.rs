@@ -12,6 +12,8 @@ pub enum Expr {
     Variable(Rc<Token>),
     Assign(Rc<Token>, Rc<Expr>),
     Call(Rc<Expr>, Rc<Token>, Vec<Rc<Expr>>),
+    Get(Rc<Expr>, Rc<Token>),
+    Set(Rc<Expr>, Rc<Token>, Rc<Expr>),
 }
 
 impl Expr {
@@ -29,6 +31,10 @@ impl Expr {
                 visitor.visit_logic_expr(Rc::clone(left), Rc::clone(token), Rc::clone(right))
             }
             Expr::Call(callee, paren, args) => visitor.visit_call_expr(Rc::clone(callee), Rc::clone(paren), args),
+            Expr::Get(object, name) => visitor.visit_get_expr(Rc::clone(object), Rc::clone(name)),
+            Expr::Set(object, name, value) => {
+                visitor.visit_set_expr(Rc::clone(object), Rc::clone(name), Rc::clone(value))
+            }
         }
     }
 }
@@ -44,6 +50,8 @@ impl fmt::Display for Expr {
             Expr::Variable(tok) => write!(f, "VariableExpression({})", tok.get_lexeme()),
             Expr::Assign(tok, _) => write!(f, "AssignmentExpression({})", tok.get_lexeme()),
             Expr::Call(callee, _, _) => write!(f, "FunctionCall({})", callee),
+            Expr::Get(object, name) => write!(f, "FieldGetter({}.{})", object, name),
+            Expr::Set(object, name, value) => write!(f, "FieldSetter({}.{}={})", object, name, value),
         }
     }
 }
