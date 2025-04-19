@@ -4,7 +4,8 @@ use super::env::Environment;
 use crate::{
     errors::LoxError,
     types::{
-        callable::LoxFunction,
+        callable::{LoxCallable, LoxFunction},
+        class::LoxClass,
         expression::Expr,
         statement::Stmt,
         token::{Token, TokenType},
@@ -122,22 +123,40 @@ impl Visitor<Val> for Interpreter {
 
     fn visit_call_expr(&mut self, callee: Rc<Expr>, paren: Rc<Token>, args: &[Rc<Expr>]) -> Result<Val, LoxError> {
         let callee = callee.accept(self)?;
-        if let Val::Func(callable) = callee {
-            let mut arg_values: Vec<Val> = vec![];
-            for arg in args {
-                arg_values.push(arg.accept(self)?);
+        match callee {
+            Val::Func(callable) => {
+                let mut arg_values: Vec<Val> = vec![];
+                for arg in args {
+                    arg_values.push(arg.accept(self)?);
+                }
+                if arg_values.len() != callable.arity() {
+                    return Err(LoxError::wrong_arity(
+                        paren.get_position(),
+                        &callable.name(),
+                        callable.arity(),
+                        arg_values.len(),
+                    ));
+                }
+                callable.as_ref().call(self, arg_values)
             }
-            if arg_values.len() != callable.arity() {
-                return Err(LoxError::wrong_arity(
-                    paren.get_position(),
-                    &callable.name(),
-                    callable.arity(),
-                    arg_values.len(),
-                ));
+            Val::Class(callable) => {
+                let mut arg_values: Vec<Val> = vec![];
+                // hack: push Val::Class(LoxClass) as first argument to avoid cloning
+                arg_values.push(Val::Class(Rc::clone(&callable)));
+                for arg in args {
+                    arg_values.push(arg.accept(self)?);
+                }
+                if arg_values.len() != callable.arity() {
+                    return Err(LoxError::wrong_arity(
+                        paren.get_position(),
+                        &callable.name(),
+                        callable.arity() - 1, // hack: -1 to account for fake first argument
+                        arg_values.len() - 1, // hack: -1 to account for fake first argument
+                    ));
+                }
+                callable.as_ref().call(self, arg_values)
             }
-            callable.as_ref().call(self, arg_values)
-        } else {
-            Err(LoxError::not_callable(paren.get_position(), &callee))
+            _ => Err(LoxError::not_callable(paren.get_position(), &callee)),
         }
     }
 
@@ -208,6 +227,15 @@ impl Visitor<Val> for Interpreter {
             None => Val::Nil,
         };
         Err(LoxError::Return(value))
+    }
+
+    fn visit_class_stmt(&mut self, name: Rc<Token>, _methods: &[Rc<Stmt>]) -> Result<(), LoxError> {
+        self.environment.borrow_mut().define(name.get_lexeme(), Val::Nil);
+        let klass = LoxClass::new(name.get_lexeme());
+        self.environment
+            .borrow_mut()
+            .assign(&name, Val::Class(Rc::new(klass)))?;
+        Ok(())
     }
 }
 

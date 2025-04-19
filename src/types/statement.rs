@@ -13,6 +13,7 @@ pub enum Stmt {
     While(Rc<Expr>, Rc<Stmt>),
     Function(Rc<Token>, Vec<Rc<Token>>, Vec<Rc<Stmt>>),
     Return(Rc<Token>, Option<Rc<Expr>>),
+    Class(Rc<Token>, Vec<Rc<Stmt>>),
 }
 
 impl Stmt {
@@ -26,6 +27,7 @@ impl Stmt {
             Stmt::While(cond, stmt) => visitor.visit_while_stmt(Rc::clone(cond), Rc::clone(stmt)),
             Stmt::Function(name, params, body) => visitor.visit_function_stmt(Rc::clone(name), params, body),
             Stmt::Return(token, expr) => visitor.visit_return_stmt(Rc::clone(token), expr),
+            Stmt::Class(token, methods) => visitor.visit_class_stmt(Rc::clone(token), methods),
         }
     }
 }

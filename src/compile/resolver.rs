@@ -52,7 +52,8 @@ impl<'a> Resolver<'a> {
                 return Ok(());
             }
         }
-        todo!("Throw appropriate LoxError, tho should be unreachable...")
+        // In case of global variables
+        Ok(())
     }
 
     fn resolve_function_body(
@@ -206,6 +207,12 @@ impl Visitor<()> for Resolver<'_> {
         if let Some(value) = expr {
             self.resolve_expr(Rc::clone(value))?;
         }
+        Ok(())
+    }
+
+    fn visit_class_stmt(&mut self, name: Rc<Token>, _: &[Rc<Stmt>]) -> Result<(), LoxError> {
+        self.declare(&name)?;
+        self.define(&name);
         Ok(())
     }
 }
