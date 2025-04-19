@@ -12,6 +12,7 @@ use super::interpreter::Interpreter;
 pub enum FunctionType {
     None,
     Function,
+    Initializer,
     Method,
 }
 
@@ -235,7 +236,11 @@ impl Visitor<()> for Resolver<'_> {
         if let FunctionType::None = self.ftype {
             return Err(LoxError::global_return(token.get_position()));
         }
+
         if let Some(value) = expr {
+            if let FunctionType::Initializer = self.ftype {
+                return Err(LoxError::init_return(token.get_position()));
+            }
             self.resolve_expr(Rc::clone(value))?;
         }
         Ok(())
@@ -252,8 +257,12 @@ impl Visitor<()> for Resolver<'_> {
         self.scopes.last_mut().unwrap().insert(String::from("this"), true);
 
         for method in methods.iter() {
-            if let Stmt::Function(_, params, body) = method.as_ref() {
-                self.resolve_function_body(params, body, FunctionType::Method)?;
+            if let Stmt::Function(name, params, body) = method.as_ref() {
+                let ftype = match name.get_lexeme() == "init" {
+                    true => FunctionType::Initializer,
+                    false => FunctionType::Method,
+                };
+                self.resolve_function_body(params, body, ftype)?;
             } else {
                 unreachable!("Statements within a class can only be methods");
             }

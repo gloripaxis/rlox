@@ -68,6 +68,10 @@ impl LoxError {
         Self::Syntax(pos, String::from("Cannot return from global context"))
     }
 
+    pub fn init_return(pos: Pos) -> Self {
+        Self::Syntax(pos, String::from("Cannot return a value from class initializer"))
+    }
+
     pub fn illegal_this(pos: Pos) -> Self {
         Self::Syntax(pos, String::from("Cannot use 'this' outside of class context"))
     }
