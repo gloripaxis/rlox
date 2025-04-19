@@ -17,14 +17,18 @@ pub enum Expr {
 impl Expr {
     pub fn accept<T>(&self, visitor: &mut dyn Visitor<T>) -> Result<T, LoxError> {
         match self {
-            Expr::Literal(token) => visitor.visit_literal_expr(token),
-            Expr::Binary(left, token, right) => visitor.visit_binary_expr(left, token, right),
-            Expr::Grouping(expr) => visitor.visit_grouping_expr(expr),
-            Expr::Unary(token, right) => visitor.visit_unary_expr(token, right),
-            Expr::Variable(token) => visitor.visit_variable_expr(token),
-            Expr::Assign(token, value) => visitor.visit_assign_expr(token, value),
-            Expr::Logical(left, token, right) => visitor.visit_logic_expr(left, token, right),
-            Expr::Call(callee, paren, args) => visitor.visit_call_expr(callee, paren, args),
+            Expr::Literal(token) => visitor.visit_literal_expr(Rc::clone(token)),
+            Expr::Binary(left, token, right) => {
+                visitor.visit_binary_expr(Rc::clone(left), Rc::clone(token), Rc::clone(right))
+            }
+            Expr::Grouping(expr) => visitor.visit_grouping_expr(Rc::clone(expr)),
+            Expr::Unary(token, right) => visitor.visit_unary_expr(Rc::clone(token), Rc::clone(right)),
+            Expr::Variable(token) => visitor.visit_variable_expr(Rc::clone(token)),
+            Expr::Assign(token, value) => visitor.visit_assign_expr(Rc::clone(token), Rc::clone(value)),
+            Expr::Logical(left, token, right) => {
+                visitor.visit_logic_expr(Rc::clone(left), Rc::clone(token), Rc::clone(right))
+            }
+            Expr::Call(callee, paren, args) => visitor.visit_call_expr(Rc::clone(callee), Rc::clone(paren), args),
         }
     }
 }
