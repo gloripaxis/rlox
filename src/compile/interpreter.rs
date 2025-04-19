@@ -163,7 +163,7 @@ impl Visitor<Val> for Interpreter {
     fn visit_get_expr(&mut self, object: Rc<Expr>, name: Rc<Token>) -> Result<Val, LoxError> {
         let value = object.accept(self)?;
         if let Val::Instance(x) = value {
-            return x.borrow().get(name);
+            return x.borrow().get(name, Rc::clone(&x));
         }
         Err(LoxError::illegal_field_access(name.get_position(), &name.get_literal()))
     }
@@ -176,6 +176,10 @@ impl Visitor<Val> for Interpreter {
             return Ok(val);
         }
         Err(LoxError::illegal_field_access(name.get_position(), &name.get_literal()))
+    }
+
+    fn visit_this_expr(&mut self, token: Rc<Token>) -> Result<Val, LoxError> {
+        self.lookup_variable(&token)
     }
 
     // --------------------- STATEMENTS ---------------------

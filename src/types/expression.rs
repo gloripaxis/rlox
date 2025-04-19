@@ -14,6 +14,7 @@ pub enum Expr {
     Call(Rc<Expr>, Rc<Token>, Vec<Rc<Expr>>),
     Get(Rc<Expr>, Rc<Token>),
     Set(Rc<Expr>, Rc<Token>, Rc<Expr>),
+    This(Rc<Token>),
 }
 
 impl Expr {
@@ -35,6 +36,7 @@ impl Expr {
             Expr::Set(object, name, value) => {
                 visitor.visit_set_expr(Rc::clone(object), Rc::clone(name), Rc::clone(value))
             }
+            Expr::This(token) => visitor.visit_this_expr(Rc::clone(token)),
         }
     }
 }
@@ -52,6 +54,7 @@ impl fmt::Display for Expr {
             Expr::Call(callee, _, _) => write!(f, "FunctionCall({})", callee),
             Expr::Get(object, name) => write!(f, "FieldGetter({}.{})", object, name),
             Expr::Set(object, name, value) => write!(f, "FieldSetter({}.{}={})", object, name, value),
+            Expr::This(token) => write!(f, "ThisExpression({})", token),
         }
     }
 }

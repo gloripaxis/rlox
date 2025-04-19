@@ -8,10 +8,17 @@ use crate::{
 
 use super::interpreter::Interpreter;
 
+#[derive(Debug, Copy, Clone)]
+pub enum ClassType {
+    Class,
+    None,
+}
+
 pub struct Resolver<'a> {
     interpreter: &'a mut Interpreter,
     scopes: Vec<HashMap<String, bool>>,
     ftype: FunctionType,
+    ctype: ClassType,
 }
 
 impl<'a> Resolver<'a> {
@@ -20,6 +27,7 @@ impl<'a> Resolver<'a> {
             interpreter,
             scopes: vec![],
             ftype: FunctionType::None,
+            ctype: ClassType::None,
         }
     }
 
@@ -160,6 +168,13 @@ impl Visitor<()> for Resolver<'_> {
         self.resolve_expr(object)
     }
 
+    fn visit_this_expr(&mut self, token: Rc<Token>) -> Result<(), LoxError> {
+        if let ClassType::None = self.ctype {
+            return Err(LoxError::illegal_this(token.get_position()));
+        }
+        self.resolve_local(token)
+    }
+
     fn visit_expression_stmt(&mut self, expr: Rc<Expr>) -> Result<(), LoxError> {
         self.resolve_expr(expr)
     }
@@ -220,8 +235,14 @@ impl Visitor<()> for Resolver<'_> {
     }
 
     fn visit_class_stmt(&mut self, name: Rc<Token>, methods: &[Rc<Stmt>]) -> Result<(), LoxError> {
+        let enclosing = self.ctype;
+        self.ctype = ClassType::Class;
+
         self.declare(&name)?;
         self.define(&name);
+
+        self.begin_scope();
+        self.scopes.last_mut().unwrap().insert(String::from("this"), true);
 
         for method in methods.iter() {
             if let Stmt::Function(_, params, body) = method.as_ref() {
@@ -230,6 +251,10 @@ impl Visitor<()> for Resolver<'_> {
                 unreachable!("Statements within a class can only be methods");
             }
         }
+
+        self.end_scope();
+        self.ctype = enclosing;
+
         Ok(())
     }
 }

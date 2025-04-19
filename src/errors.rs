@@ -68,6 +68,10 @@ impl LoxError {
         Self::Syntax(pos, String::from("Cannot return from global context"))
     }
 
+    pub fn illegal_this(pos: Pos) -> Self {
+        Self::Syntax(pos, String::from("Cannot use 'this' outside of class context"))
+    }
+
     // RuntimeErrors (Interpreter)
     pub fn unary_operand(pos: Pos, op: TokenType, value: &Val) -> Self {
         Self::Runtime(pos, format!("Operand of '{}' must be a number; found {:?}", op, value))

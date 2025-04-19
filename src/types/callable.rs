@@ -5,7 +5,7 @@ use crate::{
     errors::LoxError,
 };
 
-use super::{statement::Stmt, token::Token, value::Val};
+use super::{class::LoxInstance, statement::Stmt, token::Token, value::Val};
 
 #[derive(Debug, Copy, Clone)]
 pub enum FunctionType {
@@ -40,6 +40,17 @@ impl LoxFunction {
             params,
             body,
             closure,
+        }
+    }
+
+    pub fn bind(&self, instance: Rc<RefCell<LoxInstance>>) -> Self {
+        let mut env = Environment::new(Some(Rc::clone(&self.closure)));
+        env.define(String::from("this"), Val::Instance(Rc::clone(&instance)));
+        Self {
+            name: Rc::clone(&self.name),
+            params: self.params.iter().map(Rc::clone).collect(),
+            body: self.body.iter().map(Rc::clone).collect(),
+            closure: Rc::new(RefCell::new(env)),
         }
     }
 }

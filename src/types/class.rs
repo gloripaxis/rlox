@@ -46,7 +46,7 @@ impl LoxInstance {
         }
     }
 
-    pub fn get(&self, name: Rc<Token>) -> Result<Val, LoxError> {
+    pub fn get(&self, name: Rc<Token>, this: Rc<RefCell<LoxInstance>>) -> Result<Val, LoxError> {
         let lex = name.get_lexeme();
         if self.state.contains_key(&lex) {
             return Ok(self.state.get(&lex).unwrap().clone());
@@ -54,7 +54,8 @@ impl LoxInstance {
 
         if let Some(x) = self.klass.find_method(&lex) {
             let method = Rc::clone(x);
-            return Ok(Val::Func(method));
+            let bound_method = method.bind(this);
+            return Ok(Val::Func(Rc::new(bound_method)));
         }
 
         Err(LoxError::undefined_property(

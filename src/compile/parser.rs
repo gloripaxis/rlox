@@ -396,6 +396,10 @@ impl Parser {
                 self.advance();
                 Ok(Rc::new(Expr::Literal(token)))
             }
+            TokenType::This => {
+                self.advance();
+                Ok(Rc::new(Expr::This(token)))
+            }
             TokenType::Identifier => {
                 self.advance();
                 Ok(Rc::new(Expr::Variable(token)))
