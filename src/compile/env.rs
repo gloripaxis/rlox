@@ -30,6 +30,7 @@ impl Environment {
         self.env.insert(name, value);
     }
 
+    #[allow(clippy::map_entry)]
     pub fn assign(&mut self, name: String, value: Val) -> Result<(), ()> {
         if self.env.contains_key(&name) {
             self.env.insert(name, value);
