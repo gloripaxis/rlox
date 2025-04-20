@@ -27,5 +27,10 @@ pub trait Visitor<T> {
     fn visit_function_stmt(&mut self, name: Rc<Token>, params: &[Rc<Token>], body: &[Rc<Stmt>])
     -> Result<(), LoxError>;
     fn visit_return_stmt(&mut self, token: Rc<Token>, expr: &Option<Rc<Expr>>) -> Result<(), LoxError>;
-    fn visit_class_stmt(&mut self, name: Rc<Token>, methods: &[Rc<Stmt>]) -> Result<(), LoxError>;
+    fn visit_class_stmt(
+        &mut self,
+        name: Rc<Token>,
+        superclass: &Option<Rc<Expr>>,
+        methods: &[Rc<Stmt>],
+    ) -> Result<(), LoxError>;
 }

@@ -66,6 +66,13 @@ impl Parser {
 
     fn class_decl(&mut self) -> Result<Rc<Stmt>, LoxError> {
         let name = self.expect(TokenType::Identifier, "class name", "class")?;
+
+        let mut superclass = None;
+        if self.advance_maybe(&[TokenType::Lt]) {
+            let name = self.expect(TokenType::Identifier, "superclass name", "<")?;
+            superclass = Some(Rc::new(Expr::Variable(name)));
+        }
+
         self.expect(TokenType::LeftBrace, "{", "class declaration")?;
 
         let mut methods: Vec<Rc<Stmt>> = vec![];
@@ -74,7 +81,7 @@ impl Parser {
         }
 
         self.expect(TokenType::RightBrace, "}", "class body")?;
-        Ok(Rc::new(Stmt::Class(name, methods)))
+        Ok(Rc::new(Stmt::Class(name, superclass, methods)))
     }
 
     fn fun_decl(&mut self, kind: &'static str) -> Result<Rc<Stmt>, LoxError> {

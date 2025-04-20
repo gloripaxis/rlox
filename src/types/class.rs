@@ -11,19 +11,25 @@ use super::{
 #[derive(Debug)]
 pub struct LoxClass {
     name: Rc<str>,
+    superclass: Option<Rc<LoxClass>>,
     methods: HashMap<String, Rc<LoxFunction>>,
 }
 
 impl LoxClass {
-    pub fn new(name: String, methods: HashMap<String, Rc<LoxFunction>>) -> Self {
+    pub fn new(name: String, superclass: Option<Rc<LoxClass>>, methods: HashMap<String, Rc<LoxFunction>>) -> Self {
         Self {
             name: Rc::from(name),
+            superclass,
             methods,
         }
     }
 
     pub fn find_method(&self, name: &str) -> Option<&Rc<LoxFunction>> {
-        self.methods.get(name)
+        let mut method = self.methods.get(name);
+        if let (None, Some(sc)) = (method, &self.superclass) {
+            method = sc.find_method(name);
+        }
+        method
     }
 }
 

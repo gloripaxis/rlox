@@ -76,6 +76,14 @@ impl LoxError {
         Self::Syntax(pos, String::from("Cannot use 'this' outside of class context"))
     }
 
+    pub fn self_inheritance(pos: Pos, class: &Lit) -> Self {
+        Self::Syntax(pos, format!("Class {class} cannot inherit from itself"))
+    }
+
+    pub fn illegal_inheritance(pos: Pos, superclass: &Lit) -> Self {
+        Self::Syntax(pos, format!("Cannot inherit from {superclass} as it's not a class"))
+    }
+
     // RuntimeErrors (Interpreter)
     pub fn unary_operand(pos: Pos, op: TokenType, value: &Val) -> Self {
         Self::Runtime(pos, format!("Operand of '{}' must be a number; found {:?}", op, value))

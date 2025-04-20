@@ -246,12 +246,28 @@ impl Visitor<()> for Resolver<'_> {
         Ok(())
     }
 
-    fn visit_class_stmt(&mut self, name: Rc<Token>, methods: &[Rc<Stmt>]) -> Result<(), LoxError> {
+    fn visit_class_stmt(
+        &mut self,
+        name: Rc<Token>,
+        superclass: &Option<Rc<Expr>>,
+        methods: &[Rc<Stmt>],
+    ) -> Result<(), LoxError> {
         let enclosing = self.ctype;
         self.ctype = ClassType::Class;
 
         self.declare(&name)?;
         self.define(&name);
+
+        if let Some(expr) = superclass {
+            if let Expr::Variable(tok) = expr.as_ref() {
+                if name.get_lexeme() == tok.get_lexeme() {
+                    return Err(LoxError::self_inheritance(tok.get_position(), &name.get_literal()));
+                }
+                self.resolve_expr(Rc::clone(expr))?;
+            } else {
+                unreachable!("If superclass exists, it can only be a Variable expression");
+            }
+        }
 
         self.begin_scope();
         self.scopes.last_mut().unwrap().insert(String::from("this"), true);

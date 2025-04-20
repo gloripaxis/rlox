@@ -257,7 +257,28 @@ impl Visitor<Val> for Interpreter {
         Err(LoxError::Return(value))
     }
 
-    fn visit_class_stmt(&mut self, name: Rc<Token>, methods: &[Rc<Stmt>]) -> Result<(), LoxError> {
+    fn visit_class_stmt(
+        &mut self,
+        name: Rc<Token>,
+        superclass: &Option<Rc<Expr>>,
+        methods: &[Rc<Stmt>],
+    ) -> Result<(), LoxError> {
+        let mut superklass: Option<Rc<LoxClass>> = None;
+        // If a superclass is specfied...
+        if let Some(expr) = superclass {
+            // ...evaluate it...
+            let sc = expr.accept(self)?;
+            // ...ensure it is actually a class...
+            match sc {
+                Val::Class(lox) => superklass = Some(lox),
+                // ...and throw an error if it isn't
+                _ => match expr.as_ref() {
+                    Expr::Variable(x) => return Err(LoxError::illegal_inheritance(x.get_position(), &x.get_literal())),
+                    _ => unreachable!(),
+                },
+            }
+        }
+
         self.environment.borrow_mut().define(name.get_lexeme(), Val::Nil);
 
         let mut method_map: HashMap<String, Rc<LoxFunction>> = HashMap::new();
@@ -274,7 +295,7 @@ impl Visitor<Val> for Interpreter {
             }
         }
 
-        let class = LoxClass::new(name.get_lexeme(), method_map);
+        let class = LoxClass::new(name.get_lexeme(), superklass, method_map);
         let result = self
             .environment
             .borrow_mut()
