@@ -19,6 +19,7 @@ pub enum FunctionType {
 #[derive(Debug, Copy, Clone)]
 pub enum ClassType {
     Class,
+    Subclass,
     None,
 }
 
@@ -183,6 +184,14 @@ impl Visitor<()> for Resolver<'_> {
         self.resolve_local(token)
     }
 
+    fn visit_super_expr(&mut self, keyword: Rc<Token>, _: Rc<Token>) -> Result<(), LoxError> {
+        match &self.ctype {
+            ClassType::None => Err(LoxError::global_super(keyword.get_position())),
+            ClassType::Class => Err(LoxError::base_super(keyword.get_position())),
+            ClassType::Subclass => self.resolve_local(keyword),
+        }
+    }
+
     fn visit_expression_stmt(&mut self, expr: Rc<Expr>) -> Result<(), LoxError> {
         self.resolve_expr(expr)
     }
@@ -252,26 +261,40 @@ impl Visitor<()> for Resolver<'_> {
         superclass: &Option<Rc<Expr>>,
         methods: &[Rc<Stmt>],
     ) -> Result<(), LoxError> {
+        // Store enclosing ClassType (for nested classes)
         let enclosing = self.ctype;
         self.ctype = ClassType::Class;
 
+        // Declare and define current class
         self.declare(&name)?;
         self.define(&name);
 
+        // If a superclass exists...
         if let Some(expr) = superclass {
             if let Expr::Variable(tok) = expr.as_ref() {
+                // ... and its the same as the current class ...
                 if name.get_lexeme() == tok.get_lexeme() {
+                    // ... throw an Error
                     return Err(LoxError::self_inheritance(tok.get_position(), &name.get_literal()));
                 }
+                // ... or resolve the expression
+                self.ctype = ClassType::Subclass;
                 self.resolve_expr(Rc::clone(expr))?;
             } else {
                 unreachable!("If superclass exists, it can only be a Variable expression");
             }
+            // ... create a dedicated scope ...
+            self.begin_scope();
+            // ... and register the `super` "variable"
+            self.scopes.last_mut().unwrap().insert(String::from("super"), true);
         }
 
+        // Create a dedicated scope for this class ...
         self.begin_scope();
+        // ... and register the `this` "variable"
         self.scopes.last_mut().unwrap().insert(String::from("this"), true);
 
+        // Resolve and register all class methods
         for method in methods.iter() {
             if let Stmt::Function(name, params, body) = method.as_ref() {
                 let ftype = match name.get_lexeme() == "init" {
@@ -284,7 +307,14 @@ impl Visitor<()> for Resolver<'_> {
             }
         }
 
+        // End the dedicated scope for this class ...
         self.end_scope();
+        // ... as well as for the superclass, if it exists
+        if superclass.is_some() {
+            self.end_scope();
+        }
+
+        // Restore original ClassType
         self.ctype = enclosing;
 
         Ok(())

@@ -15,6 +15,7 @@ pub enum Expr {
     Get(Rc<Expr>, Rc<Token>),
     Set(Rc<Expr>, Rc<Token>, Rc<Expr>),
     This(Rc<Token>),
+    Super(Rc<Token>, Rc<Token>),
 }
 
 impl Expr {
@@ -37,6 +38,7 @@ impl Expr {
                 visitor.visit_set_expr(Rc::clone(object), Rc::clone(name), Rc::clone(value))
             }
             Expr::This(token) => visitor.visit_this_expr(Rc::clone(token)),
+            Expr::Super(keyword, method) => visitor.visit_super_expr(Rc::clone(keyword), Rc::clone(method)),
         }
     }
 }
@@ -55,6 +57,7 @@ impl fmt::Display for Expr {
             Expr::Get(object, name) => write!(f, "FieldGetter({}.{})", object, name),
             Expr::Set(object, name, value) => write!(f, "FieldSetter({}.{}={})", object, name, value),
             Expr::This(token) => write!(f, "ThisExpression({})", token),
+            Expr::Super(_, method) => write!(f, "SuperExpression({})", method),
         }
     }
 }

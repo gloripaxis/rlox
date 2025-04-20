@@ -182,6 +182,43 @@ impl Visitor<Val> for Interpreter {
         self.lookup_variable(&token)
     }
 
+    fn visit_super_expr(&mut self, keyword: Rc<Token>, method: Rc<Token>) -> Result<Val, LoxError> {
+        let distance = self.locals.get(&keyword.get_id());
+        if distance.is_none() {
+            // should never happen (?)
+            return Err(LoxError::Runtime(keyword.get_position(), String::from("TODO!")));
+        }
+
+        let distance = distance.unwrap();
+        let super_env = self.get_env_ancestor(*distance);
+        let super_class = super_env.borrow().get_here("super");
+
+        // environment containing `this` is always one under environment containing `super`
+        let this_env = self.get_env_ancestor(*distance - 1);
+        let instance = this_env.borrow().get_here("this");
+
+        if let Val::Class(sc) = super_class {
+            let lox_meth = sc.find_method(&method.get_lexeme());
+            if lox_meth.is_none() {
+                return Err(LoxError::undefined_property(
+                    method.get_position(),
+                    &sc.get_name(),
+                    &method.get_literal(),
+                ));
+            }
+            let lox_meth = lox_meth.unwrap();
+
+            if let Val::Instance(lox_inst) = instance {
+                let bound_meth = Rc::new(lox_meth.bind(Rc::clone(&lox_inst)));
+                Ok(Val::Func(bound_meth))
+            } else {
+                unreachable!("`this` should always point to an instance of a class");
+            }
+        } else {
+            unreachable!("`super` should always point to a super class");
+        }
+    }
+
     // --------------------- STATEMENTS ---------------------
     fn visit_expression_stmt(&mut self, expr: Rc<Expr>) -> Result<(), LoxError> {
         expr.accept(self)?;
@@ -279,7 +316,17 @@ impl Visitor<Val> for Interpreter {
             }
         }
 
+        // Insert placeholder for this class into environment
         self.environment.borrow_mut().define(name.get_lexeme(), Val::Nil);
+
+        // If a superclass exists, create an enclosing environment
+        if let Some(lox_class) = &superklass {
+            let cur_env = Rc::clone(&self.environment);
+            self.environment = Rc::new(RefCell::new(Environment::new(Some(cur_env))));
+            self.environment
+                .borrow_mut()
+                .define(String::from("super"), Val::Class(Rc::clone(lox_class)));
+        }
 
         let mut method_map: HashMap<String, Rc<LoxFunction>> = HashMap::new();
         for method in methods.iter() {
@@ -296,6 +343,13 @@ impl Visitor<Val> for Interpreter {
         }
 
         let class = LoxClass::new(name.get_lexeme(), superklass, method_map);
+
+        // If a superclass exists, restore parent environment
+        if superclass.is_some() {
+            let parent_env = self.environment.borrow().get_parent().unwrap();
+            self.environment = parent_env;
+        }
+
         let result = self
             .environment
             .borrow_mut()

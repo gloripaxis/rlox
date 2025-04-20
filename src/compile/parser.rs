@@ -407,6 +407,12 @@ impl Parser {
                 self.advance();
                 Ok(Rc::new(Expr::This(token)))
             }
+            TokenType::Super => {
+                self.advance();
+                self.expect(TokenType::Dot, ".", "super")?;
+                let method = self.expect(TokenType::Identifier, "method name", "super.")?;
+                Ok(Rc::new(Expr::Super(token, method)))
+            }
             TokenType::Identifier => {
                 self.advance();
                 Ok(Rc::new(Expr::Variable(token)))

@@ -31,6 +31,10 @@ impl LoxClass {
         }
         method
     }
+
+    pub fn get_name(&self) -> String {
+        self.name.to_string()
+    }
 }
 
 impl fmt::Display for LoxClass {

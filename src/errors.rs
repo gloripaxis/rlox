@@ -84,6 +84,14 @@ impl LoxError {
         Self::Syntax(pos, format!("Cannot inherit from {superclass} as it's not a class"))
     }
 
+    pub fn global_super(pos: Pos) -> Self {
+        Self::Syntax(pos, String::from("Cannot use 'super' outside of class context"))
+    }
+
+    pub fn base_super(pos: Pos) -> Self {
+        Self::Syntax(pos, String::from("Cannot use 'super' in a class with no superclass"))
+    }
+
     // RuntimeErrors (Interpreter)
     pub fn unary_operand(pos: Pos, op: TokenType, value: &Val) -> Self {
         Self::Runtime(pos, format!("Operand of '{}' must be a number; found {:?}", op, value))
