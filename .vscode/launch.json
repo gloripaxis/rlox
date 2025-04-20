@@ -1,0 +1,29 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug rlox",
+            "cargo": {
+                "args": [
+                    "build"
+                ],
+                "filter": {
+                    "name": "rlox",
+                    "kind": "bin"
+                }
+            },
+            "expressions": "simple",
+            "preRunCommands": [
+                "command script import ${workspaceFolder}/.vscode/rust_prettifier_for_lldb.py"
+            ],
+            "program": "${workspaceFolder}/target/debug/rlox",
+            "args": ["${workspaceFolder}/scripts/class1.lox"],
+            "cwd": "${workspaceFolder}",
+        }
+    ]
+}
